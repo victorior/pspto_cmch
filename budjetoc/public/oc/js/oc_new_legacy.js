@@ -66,6 +66,33 @@ jQuery(function ($) {
     return String($sel.val() || '').trim().toLowerCase();
   }
 
+  /** Rama factura: iva | exento (default iva al elegir Factura). */
+  function selectedTaxFacturaMode() {
+    var $checked = $('input[name="tax_factura_mode"]:checked');
+    if ($checked.length) {
+      return String($checked.val() || '').trim().toLowerCase();
+    }
+    var fromCfg = String(cfg.taxFacturaMode || '').trim().toLowerCase();
+    if (fromCfg === 'exento') {
+      return 'exento';
+    }
+    return 'iva';
+  }
+
+  function syncTaxFacturaModeVisibility() {
+    var isFactura = selectedTaxDocType() === 'factura';
+    var $wrap = $('#tax_factura_mode_wrap');
+    if (!$wrap.length) {
+      return;
+    }
+    $wrap.toggle(isFactura);
+    if (isFactura) {
+      if (!$('input[name="tax_factura_mode"]:checked').length) {
+        $('#tax_factura_mode_iva').prop('checked', true);
+      }
+    }
+  }
+
   function money0(n) {
     if (isNaN(n)) {
       return '';
@@ -238,8 +265,13 @@ jQuery(function ($) {
     var docType = selectedTaxDocType();
     var prof;
     // Perfil elegido manda; sin eleccion (historica) → inferencia legado.
+    // Con Factura + rama, no inferir por producto (ocDetectTaxProfile).
     if (docType === 'factura') {
-      prof = { mode: 'iva', rate: OC_TAX_PERCENT };
+      if (selectedTaxFacturaMode() === 'exento') {
+        prof = { mode: 'exento', rate: 0 };
+      } else {
+        prof = { mode: 'iva', rate: OC_TAX_PERCENT };
+      }
     } else if (docType === 'boleta') {
       prof = { mode: 'retencion', rate: OC_BOLETA_RETENCION_PERCENT };
     } else {
@@ -776,6 +808,11 @@ jQuery(function ($) {
   });
 
   $('#tax_doc_type').on('change', function () {
+    syncTaxFacturaModeVisibility();
+    refreshDocTotals();
+  });
+
+  $(document).on('change', 'input[name="tax_factura_mode"]', function () {
     refreshDocTotals();
   });
 
@@ -788,6 +825,16 @@ jQuery(function ($) {
       alert('Debe elegir el tipo de documento (Factura o Boleta de Honorarios).');
       $('#tax_doc_type').focus();
       return false;
+    }
+    if (selectedTaxDocType() === 'factura') {
+      var fm = selectedTaxFacturaMode();
+      if (fm !== 'iva' && fm !== 'exento') {
+        e.preventDefault();
+        alert('Debe indicar si la factura es Afecta IVA o Exenta.');
+        $('#tax_factura_mode_wrap').show();
+        $('#tax_factura_mode_iva').focus();
+        return false;
+      }
     }
     if (!$('#nro_cta').val()) {
       e.preventDefault();
@@ -907,6 +954,7 @@ jQuery(function ($) {
       }
     });
   }
+  syncTaxFacturaModeVisibility();
   if ($('#lines_body tr').length || $('#resultadosPspto .budget-pick').length) {
     refreshAllocHint();
     refreshDocTotals();

@@ -170,6 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
 
         $taxDocTypePost = strtolower(trim((string) ($_POST['tax_doc_type'] ?? '')));
+        $taxFacturaModePost = strtolower(trim((string) ($_POST['tax_factura_mode'] ?? '')));
         $taxProfile = null;
         if ($taxDocTypePost === '') {
             if ($purchaseOrderId <= 0) {
@@ -187,10 +188,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Debe elegir el tipo de documento (Factura o Boleta de Honorarios).');
             }
             // Historica sin perfil: dejar tax_* sin cambios (inferencia legado).
-        } elseif ($taxDocTypePost !== 'factura' && $taxDocTypePost !== 'boleta') {
-            throw new RuntimeException('Tipo de documento invalido.');
         } else {
-            $taxProfile = oc_tax_profile_base_fields($taxDocTypePost);
+            $taxProfile = oc_tax_profile_from_form_input($taxDocTypePost, $taxFacturaModePost);
         }
 
         if ($purchaseOrderId > 0) {
@@ -272,6 +271,7 @@ $noteDefault = $rep('note', '');
 $reqDefault = $rep('req_number', '');
 $folioYearDefault = $rep('folio_year', $year);
 $taxDocTypeDefault = $rep('tax_doc_type', '');
+$taxFacturaModeDefault = $rep('tax_factura_mode', '');
 if ($editPoId > 0 && $editData === null) {
     $editData = OcService::getPurchaseOrderForEdit($pdo, $tid, $editPoId);
     if ($editData !== null && OcService::canEditPurchaseOrder($editData['order'])) {
@@ -310,6 +310,17 @@ if ($isEdit && $editData !== null) {
             $taxDocTypeDefault = 'factura';
         }
     }
+    if ($taxFacturaModeDefault === '' && $taxDocTypeDefault === 'factura') {
+        $modeHydrate = strtolower(trim((string) ($editData['order']['tax_mode'] ?? '')));
+        if ($modeHydrate === 'exento') {
+            $taxFacturaModeDefault = 'exento';
+        } elseif ($modeHydrate === 'iva' || $modeHydrate === '') {
+            $taxFacturaModeDefault = 'iva';
+        }
+    }
+}
+if ($taxDocTypeDefault === 'factura' && $taxFacturaModeDefault !== 'exento') {
+    $taxFacturaModeDefault = 'iva';
 }
 // Nueva OC o edicion con perfil ya persistido: tipo obligatorio. Historica sin perfil: opcional.
 $taxDocTypeRequired = !$isEdit
@@ -338,6 +349,7 @@ window.OC_NEW_CONFIG = {
   nroCta4: <?= $nroCta4Default ?>,
   taxDocType: <?= json_encode($taxDocTypeDefault, JSON_UNESCAPED_UNICODE) ?>,
   taxDocTypeRequired: <?= $taxDocTypeRequired ? 'true' : 'false' ?>,
+  taxFacturaMode: <?= json_encode($taxFacturaModeDefault, JSON_UNESCAPED_UNICODE) ?>,
   boletaRetencionPercent: <?= json_encode(oc_boleta_retencion_rate_percent(''), JSON_UNESCAPED_UNICODE) ?>,
   initialLines: <?= json_encode($initialLines, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_HEX_TAG) ?>,
   initialBudget: <?= json_encode($initialBudget, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_HEX_TAG) ?>,
@@ -349,7 +361,7 @@ window.OC_NEW_CONFIG = {
   }
 };
 </script>
-<script src="js/oc_new_legacy.js?v=20261121"></script>
+<script src="js/oc_new_legacy.js?v=20261121b"></script>
 <?php
 $layoutPageScripts = (string) ob_get_clean();
 require __DIR__ . '/inc/layout_oc_legacy_bottom.php';

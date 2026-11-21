@@ -259,6 +259,23 @@ declare(strict_types=1);
             <option value="boleta" <?= ($taxDocTypeDefault ?? '') === 'boleta' ? 'selected' : '' ?>>Boleta de Honorarios</option>
           </select>
         </div>
+        <?php
+        $facturaModeUi = ($taxFacturaModeDefault ?? '') === 'exento' ? 'exento' : 'iva';
+        // Visible sin JS cuando tipo ya es Factura (alta con default / edicion); oculto solo boleta o vacio.
+        $taxDocTypeUi = strtolower(trim((string) ($taxDocTypeDefault ?? '')));
+        $showFacturaMode = $taxDocTypeUi === 'factura';
+        $facturaModeWrapStyle = $showFacturaMode ? '' : 'display:none;';
+        ?>
+        <div id="tax_factura_mode_wrap" class="col-md-2"<?= $facturaModeWrapStyle !== '' ? ' style="' . h($facturaModeWrapStyle) . '"' : '' ?>>
+          <label class="radio-inline" style="padding-top:5px;">
+            <input type="radio" name="tax_factura_mode" id="tax_factura_mode_iva" value="iva"
+                   <?= $facturaModeUi === 'iva' ? 'checked' : '' ?>> Afecta IVA
+          </label>
+          <label class="radio-inline" style="padding-top:5px;">
+            <input type="radio" name="tax_factura_mode" id="tax_factura_mode_exento" value="exento"
+                   <?= $facturaModeUi === 'exento' ? 'checked' : '' ?>> Exenta
+          </label>
+        </div>
         <label for="folio_year" class="col-md-1 control-label">Folio:</label>
         <div class="col-md-2">
           <input type="number" class="form-control input-sm" name="folio_year" id="folio_year"

@@ -9,3 +9,11 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1-elegir-tipo-de-documento-y-persistir-perfil-base.md`
   summary: run_verification_tests.py aún no lee db.port numérico
   evidence: Preexistente; apply/verify de migraciones sí leen port; en XAMPP 3307 el script amplio puede fallar conexión
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-1-elegir-tipo-de-documento-y-persistir-perfil-base.md`
+  summary: activity_view muestra sección Historial de imputaciones reversadas cuando solo deberían verse OC vigentes
+  evidence: Hallazgo manual en walkthrough 1.1 (activity_view.php?id=3); fuera del alcance de perfil tributario; no tocado en el diff 1.1 — pendiente post-1.2
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-2-factura-afecta-iva-o-exenta-totales-e-impresion.md`
+  summary: Sin harness JS para refreshDocTotals rama Factura+Exenta
+  evidence: Repo sin runner JS; smoke manual de totales en browser

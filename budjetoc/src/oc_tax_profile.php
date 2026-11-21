@@ -158,12 +158,13 @@ function oc_tax_profile_from_po_lines(array $lines): array
 }
 
 /**
- * Campos base a persistir segun tipo de documento elegido (story 1.1).
- * Factura → iva/19; Boleta → retencion + % provisional del helper legado.
+ * Campos base a persistir segun tipo de documento (stories 1.1 / 1.2).
+ * Factura + rama iva|exento (null/omitido → iva/19); Boleta ignora $facturaMode
+ * y usa retencion + % provisional del helper legado.
  *
  * @return array{tax_doc_type: string, tax_mode: string, tax_percent: float}
  */
-function oc_tax_profile_base_fields(string $docType): array
+function oc_tax_profile_base_fields(string $docType, ?string $facturaMode = null): array
 {
     $docType = strtolower(trim($docType));
     if ($docType === 'boleta') {
@@ -174,14 +175,62 @@ function oc_tax_profile_base_fields(string $docType): array
         ];
     }
     if ($docType === 'factura') {
-        return [
-            'tax_doc_type' => 'factura',
-            'tax_mode' => 'iva',
-            'tax_percent' => 19.0,
-        ];
+        $mode = $facturaMode === null ? '' : strtolower(trim($facturaMode));
+        if ($mode === '' || $mode === 'iva') {
+            return oc_tax_profile_iva_fields();
+        }
+        if ($mode === 'exento') {
+            return oc_tax_profile_exento_fields();
+        }
+
+        throw new InvalidArgumentException('Rama de factura invalida: use iva o exento.');
     }
 
     throw new InvalidArgumentException('Tipo de documento invalido: use factura o boleta.');
+}
+
+/** @return array{tax_doc_type: string, tax_mode: string, tax_percent: float} */
+function oc_tax_profile_iva_fields(): array
+{
+    return [
+        'tax_doc_type' => 'factura',
+        'tax_mode' => 'iva',
+        'tax_percent' => 19.0,
+    ];
+}
+
+/** @return array{tax_doc_type: string, tax_mode: string, tax_percent: float} */
+function oc_tax_profile_exento_fields(): array
+{
+    return [
+        'tax_doc_type' => 'factura',
+        'tax_mode' => 'exento',
+        'tax_percent' => 0.0,
+    ];
+}
+
+/**
+ * Mapeo frontera formulario → perfil (mismas validaciones/mensajes que oc_new POST).
+ *
+ * @return array{tax_doc_type: string, tax_mode: string, tax_percent: float}
+ * @throws RuntimeException
+ */
+function oc_tax_profile_from_form_input(string $taxDocType, string $taxFacturaMode = ''): array
+{
+    $taxDocType = strtolower(trim($taxDocType));
+    $taxFacturaMode = strtolower(trim($taxFacturaMode));
+    if ($taxDocType !== 'factura' && $taxDocType !== 'boleta') {
+        throw new RuntimeException('Tipo de documento invalido.');
+    }
+    if ($taxDocType === 'factura') {
+        if ($taxFacturaMode !== 'iva' && $taxFacturaMode !== 'exento') {
+            throw new RuntimeException('Debe indicar si la factura es Afecta IVA o Exenta.');
+        }
+
+        return oc_tax_profile_base_fields('factura', $taxFacturaMode);
+    }
+
+    return oc_tax_profile_base_fields('boleta');
 }
 
 /** True si la OC tiene perfil tributario persistido (tipo o modo no vacio). */
