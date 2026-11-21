@@ -30,8 +30,10 @@ declare(strict_types=1);
 /** @var string|null $selectedDepartmentKind */
 /** @var string|null $selectedDepartmentName */
 /** @var array<int, bool> $listEditFlags */
+/** @var array<int, bool> $listDeleteFlags */
 
 $listEditFlags = $listEditFlags ?? [];
+$listDeleteFlags = $listDeleteFlags ?? [];
 
 $dashboardReturnDepartmentId = isset($_GET['return_department_id']) ? (int) $_GET['return_department_id'] : 0;
 
@@ -316,6 +318,21 @@ if ($showList):
         <a href="activity_view.php?id=<?= (int) $row['id'] ?><?= h($activityReturnSuffix) ?>">Ver</a>
         <?php if (!empty($listEditFlags[(int) $row['id']])): ?>
         &nbsp;|&nbsp;<a href="activity_edit.php?id=<?= (int) $row['id'] ?><?= h($activityReturnSuffix) ?>">Editar</a>
+        <?php endif; ?>
+        <?php
+          $rowCanDelete = !empty($listDeleteFlags[(int) $row['id']])
+              && $occNum !== null
+              && $occNum <= 0.005;
+        ?>
+        <?php if ($rowCanDelete): ?>
+        &nbsp;|&nbsp;
+        <form method="post" action="activity_delete.php" style="display:inline;margin:0;"
+              onsubmit="return confirm('Eliminar esta actividad? Esta accion no se puede deshacer.');">
+          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+          <input type="hidden" name="id" value="<?= (int) $row['id'] ?>">
+          <input type="hidden" name="return" value="<?= h($listReturnUrl) ?>">
+          <button type="submit" class="btn-link" style="background:none;border:none;padding:0;color:inherit;cursor:pointer;text-decoration:underline;font:inherit;">Eliminar</button>
+        </form>
         <?php endif; ?>
       </td>
     </tr>
