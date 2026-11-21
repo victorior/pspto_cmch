@@ -61,3 +61,7 @@
 - source_spec: `_bmad-output/specs/spec-admin-org-y-eliminar-actividades/stories/2-editar-catalogo-org-con-paridad-multi-tenant.md`
   summary: Throwable en rename de CatalogService se re-lanza tras rollback en lugar de devolver {ok:false}
   evidence: Mismo patrón que otros servicios; handlers admin no capturan Throwable y pueden 500
+
+- source_spec: `_bmad-output/specs/spec-admin-org-y-eliminar-actividades/stories/3-eliminar-catalogo-org-con-guard-de-actividades.md`
+  summary: Posible TOCTOU entre check CAP-2 y DELETE de departments (FK SET NULL en budget_headers)
+  evidence: maybe-false medium; CC protegido por RESTRICT; asentar con prueba concurrente o SELECT ... FOR UPDATE + re-check en la misma TX

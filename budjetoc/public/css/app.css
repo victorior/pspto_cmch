@@ -181,12 +181,19 @@ p.page-actions { border: 0; }
   list-style: none;
   padding-left: 0;
 }
+.catalog-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+  margin-bottom: 0.45rem;
+}
 .catalog-rename-form {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem 0.5rem;
-  margin-bottom: 0.45rem;
+  flex: 1 1 16rem;
 }
 .catalog-rename-form__current {
   min-width: 8rem;
@@ -195,6 +202,9 @@ p.page-actions { border: 0; }
 .catalog-rename-form input[name="new_name"] {
   flex: 1 1 10rem;
   max-width: 18rem;
+}
+.catalog-delete-form {
+  flex: 0 0 auto;
 }
 .catalog-add-form { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
 .catalog-add-form label { margin-top: 0.35rem; }

@@ -41,6 +41,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $err = (string) $result['error'];
             }
         }
+    } elseif ($action === 'delete_cc') {
+        $id = (int) ($_POST['id'] ?? 0);
+        $st = $pdo->prepare('SELECT name FROM cost_centers WHERE id = ? AND tenant_id = ? LIMIT 1');
+        $st->execute([$id, $tid]);
+        $name = $st->fetchColumn();
+        if ($name === false) {
+            $err = 'Centro de costo no encontrado.';
+        } else {
+            $result = CatalogService::deleteCostCenterAcrossTenants($pdo, (string) $name);
+            if ($result['ok']) {
+                tenant_catalog_redirect_ok($tid, 'tenant_catalog_cost_centers.php', (string) $result['message']);
+            } else {
+                $err = (string) $result['error'];
+            }
+        }
     }
 }
 
@@ -59,7 +74,7 @@ tenant_catalog_subnav($tid, 'cc');
   <p style="color:var(--muted);">Sin registros. Agregue el primero abajo.</p>
   <?php else: ?>
   <ul class="catalog-list catalog-list--editable"><?php foreach ($rows as $r): ?>
-    <li>
+    <li class="catalog-row">
       <form method="post" class="catalog-rename-form">
         <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
         <input type="hidden" name="tenant_id" value="<?= $tid ?>">
@@ -68,6 +83,13 @@ tenant_catalog_subnav($tid, 'cc');
         <span class="catalog-rename-form__current"><?= h($r['name']) ?></span>
         <input name="new_name" value="<?= h($r['name']) ?>" required aria-label="Nuevo nombre del centro de costo">
         <button type="submit" class="btn btn-primary">Renombrar</button>
+      </form>
+      <form method="post" class="catalog-delete-form" onsubmit="return confirm(<?= h(json_encode('¿Eliminar el centro de costo «' . $r['name'] . '» en todos los tenants activos?', JSON_UNESCAPED_UNICODE)) ?>);">
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="tenant_id" value="<?= $tid ?>">
+        <input type="hidden" name="action" value="delete_cc">
+        <input type="hidden" name="id" value="<?= (int) $r['id'] ?>">
+        <button type="submit" class="btn">Eliminar</button>
       </form>
     </li>
   <?php endforeach; ?></ul>
