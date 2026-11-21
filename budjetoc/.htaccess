@@ -34,11 +34,11 @@ Options -Indexes
 
   RewriteCond %{REQUEST_URI} !/public/ [NC]
 
-  RewriteRule ^$ public/ [R=302,L]
+  RewriteRule ^$ public/ [L]
 
   RewriteCond %{REQUEST_URI} !/public/ [NC]
 
-  RewriteRule ^(.*)$ public/$1 [R=302,L]
+  RewriteRule ^(.*)$ public/$1 [L]
 
 </IfModule>
 

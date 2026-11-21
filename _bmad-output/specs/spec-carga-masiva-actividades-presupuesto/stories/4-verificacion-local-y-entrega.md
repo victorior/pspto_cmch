@@ -2,7 +2,7 @@
 title: 'Verificación local y entrega'
 type: 'chore'
 created: '2026-11-21'
-status: 'in-progress'
+status: 'in-review'
 route: 'dispatch'
 review_loop_iteration: 0
 baseline_commit: 'f655aad3f9fa3d3bb0c7776b15b9b86f49331aec'
@@ -68,10 +68,28 @@ context:
 - 2026-11-21: `config.production.example.php` actualizado a nanosoft (`base_url=/budget`, `public_url=https://nanosoft.cl/budget`, `secrets_path` externo).
 - 2026-11-21: Empaquetado manual → `_bmad-output/deploy/budget-app.zip` (raíz `budget/`, 122 entradas, incluye import UI, 0 `*secret*`); zip gitignored.
 - 2026-11-21: GitHub — push `feature/carga-masiva-actividades-presupuesto` + merge PR #2 → `origin/main` (`b1bb3c0`).
+- 2026-11-21: Review patches — `.htaccess` rewrite interno `[L]`; README Instalación nueva + carga masiva; smoke `test_config_production_example.php` 5/5; zip regenerado con `/` (119 entradas, 0 secretos, sin R=302).
 
 ## Spec Change Log
 
 ## Review Triage Log
+
+| Finding | Verdict | Evidence / route |
+|---------|---------|------------------|
+| BH: status still `in-progress` while tasks `[x]` | false | El workflow mueve `in-progress` → `in-review` → `done` fuera del diff de producto; el estado en el diff es intermedio del build, no un defecto de entrega. |
+| BH: Spec Change Log / Review Triage Log vacíos | false | Change Log solo se llena en loopback `bad_spec`; este log se completa en triage (ahora). |
+| BH: Code Map sigue diciendo README “stale nanodata” | false | Fix = editar la spec del build; regla de triage rechaza findings cuyo fix es editar la spec. |
+| BH: README quita `docs/google-oauth-nanodata.md` sin doc nanosoft | false | El URI nanosoft queda inline; el doc nanodata sería incorrecto para este host. Mismo patrón que README en `origin/main`. |
+| BH: Instalación nueva omite ruta carga masiva | low | README Actualización sí la menciona; Instalación nueva no. Operador greenfield no ve el path Admin→import. Route: **patch**. |
+| BH: AC no cubre subir zip al hosting | false | Intent/Approach piden generar el zip; Design Notes y gitignore dejan la subida manual fuera. |
+| BH: README lista SQL sin regenerarlos en el diff | false | Sin cambio de esquema en esta feature; listado heredado del empaquetado nanosoft. |
+| BH: HTTP UI diferido (BOM / no-superadmin) | false | Design Notes + Verification ya diferían HTTP; Approach exige smokes CLI. |
+| BH: falta prerequisito email en `users` para OAuth | defer | Preexistente en AGENTS.md; no lo introduce esta historia. |
+| BH: dual naming Main/`main` | false | Acceptance ya ancla `origin/main`; Design Notes cubren el alias. |
+| EC: zip con backslashes `budget\...` | medium | Zip real: entradas `budget\...` (Compress-Archive). En Linux/cPanel puede no materializar árbol `budget/public/`. Route: **patch**. |
+| EC: README dice rewrite interno; `.htaccess` empaquetado tiene `[R=302,L]` | medium | Confirmado en zip y en `budjetoc/.htaccess`. README de esta entrega afirma lo contrario. Route: **patch**. |
+| EC: nota 016 no cubre columnas parciales | defer | Texto heredado de deploy nanosoft; no es carga masiva ni causado por CAP. |
+| VG: sin assert automatizado del contrato nanosoft en `config.production.example.php` | medium | Pre-verificado por capa: CAP smokes no cargan el example; regresión a `/cmchbudget` pasaría. Disposition filed `patch`. Route: **patch**. |
 
 ## Design Notes
 
@@ -84,7 +102,8 @@ context:
 **Commands:**
 - `php budjetoc/database/test_budget_activity_csv_validate.php` -- exit 0 (35 ok, 0 fail)
 - `php budjetoc/database/test_budget_activity_csv_import.php` -- exit 0 (38 ok, 0 fail)
-- Inspección zip: raíz `budget/`; `budget/public/` presente; `budget_activities_import.php` presente; 0 entradas `*secret*`; config apunta a secrets_path externo
+- `php budjetoc/database/test_config_production_example.php` -- exit 0 (contrato nanosoft)
+- Inspección zip: raíz `budget/` con `/`; `budget/public/` presente; `budget_activities_import.php` presente; 0 entradas `*secret*`; `.htaccess` sin `R=302`; config apunta a secrets_path externo
 
 **Manual checks:**
 - UI: descarga plantilla UTF-8 BOM; no-superadmin denegado (si sesión disponible) — diferido; gate estático verificado.

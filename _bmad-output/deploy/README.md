@@ -31,6 +31,7 @@
 5. PHP **8.1+** (obligatorio).
 6. Google OAuth ya debe incluir la redirect (ver abajo).
 7. Probar `https://nanosoft.cl/budget/` (con barra final).
+8. Carga masiva de actividades: Admin → tenant → import CSV (`budget_activities_import.php`); solo super admin.
 
 **Importante:** el `.htaccess` de la raíz de `budget/` hace *rewrite interno* a `public/` (no redirect 302).  
 Si ves una URL tipo `/home2/cna14865/public_html/budget/public/`, el `.htaccess` del servidor es el viejo: vuelve a subir el del zip.
