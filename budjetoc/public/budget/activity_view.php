@@ -57,7 +57,6 @@ $ocImputations = BudgetService::ocImputationsForHeader($pdo, $tid, $hid);
 $ocByDetail = $ocImputations['oc_numbers_by_detail'] ?? [];
 $reqByDetail = $ocImputations['req_numbers_by_detail'] ?? [];
 $ocAllocations = BudgetService::allocationsForHeader($pdo, $tid, $hid);
-$ocAllocationsVoided = BudgetService::allocationsForHeaderVoided($pdo, $tid, $hid);
 $headerObservations = trim((string) ($h['observations'] ?? ''));
 $total = BudgetService::headerTotal($pdo, $hid);
 $util = BudgetService::utilizedSumsByHeaderIds($pdo, [$hid])[$hid] ?? 0.0;
@@ -218,62 +217,6 @@ require dirname(__DIR__) . '/inc/layout_top.php';
           </a>
         </td>
         <td><?= h(substr((string) ($alloc['ordered_at'] ?? ''), 0, 10)) ?></td>
-        <td style="max-width:14rem;font-size:0.88rem;"><?= $ocDesc !== '' ? h($ocDesc) : '—' ?></td>
-        <td style="max-width:12rem;font-size:0.88rem;"><?= $ocSupplier !== '' ? h($ocSupplier) : '—' ?></td>
-        <td><?= h(budget_account_label($pdo, [
-            'account_id' => (int) ($alloc['account_id'] ?? 0),
-            'name' => (string) ($alloc['account_name'] ?? ''),
-        ])) ?></td>
-        <td class="num"><?= budget_int_fmt((float) ($alloc['amount'] ?? 0)) ?></td>
-        <td><?= h((string) ($alloc['req_number'] ?? '')) !== '' ? h((string) $alloc['req_number']) : '—' ?></td>
-      </tr>
-    <?php endforeach; ?>
-    </tbody>
-  </table>
-</div>
-<?php endif; ?>
-<?php if ($ocAllocationsVoided !== []): ?>
-<div class="card" style="border-color:#fecaca;">
-  <h3>Historial — imputaciones reversadas (OC anuladas)</h3>
-  <p class="dash-muted" style="margin:0 0 0.75rem;font-size:0.9rem;">
-    Estas imputaciones ya no consumen presupuesto; se conservan como registro de lo que estuvo imputado.
-  </p>
-  <table class="data">
-    <thead>
-      <tr>
-        <th>Nº OC</th>
-        <th>Fecha OC</th>
-        <th>Anulada</th>
-        <th>Descripcion</th>
-        <th>Proveedor</th>
-        <th>Cuenta</th>
-        <th class="num">Monto (reversado)</th>
-        <th>REQ</th>
-      </tr>
-    </thead>
-    <tbody>
-    <?php foreach ($ocAllocationsVoided as $alloc): ?>
-      <?php
-        $folio = oc_folio_label((string) ($alloc['folio_year'] ?? ''), (int) ($alloc['numero_oc'] ?? 0));
-        $voidedRaw = trim((string) ($alloc['voided_at'] ?? ''));
-        $voidedLabel = $voidedRaw !== '' ? substr($voidedRaw, 0, 16) : '—';
-        $ocDesc = trim((string) ($alloc['po_line_descriptions'] ?? ''));
-        if ($ocDesc === '') {
-            $ocDesc = trim((string) ($alloc['po_note'] ?? ''));
-        }
-        $ocSupplier = trim((string) ($alloc['supplier_trade_name'] ?? '')) !== ''
-            ? trim((string) $alloc['supplier_trade_name'])
-            : trim((string) ($alloc['supplier_legal_name'] ?? ''));
-      ?>
-      <tr style="color:#64748b;">
-        <td>
-          <a href="../oc/view_from_activity.php?id=<?= (int) ($alloc['purchase_order_id'] ?? 0) ?>&amp;activity_id=<?= $hid ?>">
-            <?= h($folio) ?>
-          </a>
-          <span style="margin-left:0.35rem;font-size:0.8rem;font-weight:600;color:#b91c1c;">Anulada</span>
-        </td>
-        <td><?= h(substr((string) ($alloc['ordered_at'] ?? ''), 0, 10)) ?></td>
-        <td><?= h($voidedLabel) ?></td>
         <td style="max-width:14rem;font-size:0.88rem;"><?= $ocDesc !== '' ? h($ocDesc) : '—' ?></td>
         <td style="max-width:12rem;font-size:0.88rem;"><?= $ocSupplier !== '' ? h($ocSupplier) : '—' ?></td>
         <td><?= h(budget_account_label($pdo, [
