@@ -14,7 +14,8 @@ $ok = $ctx['ok'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_post_csrf();
-    if ((string) ($_POST['action'] ?? '') === 'add_cc') {
+    $action = (string) ($_POST['action'] ?? '');
+    if ($action === 'add_cc') {
         $name = trim((string) ($_POST['name'] ?? ''));
         if ($name !== '') {
             if (!CatalogService::costCenterExists($pdo, $tid, $name)) {
@@ -24,6 +25,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             tenant_catalog_redirect_ok($tid, 'tenant_catalog_cost_centers.php', 'Centro de costo agregado (replicado a los demas tenants).');
         }
         $err = 'Nombre requerido.';
+    } elseif ($action === 'rename_cc') {
+        $id = (int) ($_POST['id'] ?? 0);
+        $newName = trim((string) ($_POST['new_name'] ?? ''));
+        $st = $pdo->prepare('SELECT name FROM cost_centers WHERE id = ? AND tenant_id = ? LIMIT 1');
+        $st->execute([$id, $tid]);
+        $oldName = $st->fetchColumn();
+        if ($oldName === false) {
+            $err = 'Centro de costo no encontrado.';
+        } else {
+            $result = CatalogService::renameCostCenterAcrossTenants($pdo, (string) $oldName, $newName);
+            if ($result['ok']) {
+                tenant_catalog_redirect_ok($tid, 'tenant_catalog_cost_centers.php', (string) $result['message']);
+            } else {
+                $err = (string) $result['error'];
+            }
+        }
     }
 }
 
@@ -41,8 +58,18 @@ tenant_catalog_subnav($tid, 'cc');
   <?php if ($rows === []): ?>
   <p style="color:var(--muted);">Sin registros. Agregue el primero abajo.</p>
   <?php else: ?>
-  <ul class="catalog-list"><?php foreach ($rows as $r): ?>
-    <li><?= h($r['name']) ?></li>
+  <ul class="catalog-list catalog-list--editable"><?php foreach ($rows as $r): ?>
+    <li>
+      <form method="post" class="catalog-rename-form">
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="tenant_id" value="<?= $tid ?>">
+        <input type="hidden" name="action" value="rename_cc">
+        <input type="hidden" name="id" value="<?= (int) $r['id'] ?>">
+        <span class="catalog-rename-form__current"><?= h($r['name']) ?></span>
+        <input name="new_name" value="<?= h($r['name']) ?>" required aria-label="Nuevo nombre del centro de costo">
+        <button type="submit" class="btn btn-primary">Renombrar</button>
+      </form>
+    </li>
   <?php endforeach; ?></ul>
   <?php endif; ?>
   <form method="post" class="catalog-add-form">

@@ -297,6 +297,165 @@ final class CatalogService
         return (bool) $st->fetchColumn();
     }
 
+    private static function namesEqualInsensitive(string $a, string $b): bool
+    {
+        return mb_strtolower(trim($a), 'UTF-8') === mb_strtolower(trim($b), 'UTF-8');
+    }
+
+    /**
+     * Renombra un centro de costo en todos los tenants activos (paridad por nombre; IDs locales intactos).
+     *
+     * @return array{ok: true, changed: bool, message: string}|array{ok: false, error: string}
+     */
+    public static function renameCostCenterAcrossTenants(PDO $pdo, string $oldName, string $newName): array
+    {
+        $oldName = trim($oldName);
+        $newName = trim($newName);
+        if ($oldName === '') {
+            return ['ok' => false, 'error' => 'Nombre actual requerido.'];
+        }
+        if ($newName === '') {
+            return ['ok' => false, 'error' => 'Nombre requerido.'];
+        }
+        if (self::namesEqualInsensitive($oldName, $newName)) {
+            return ['ok' => true, 'changed' => false, 'message' => 'Sin cambios: el nombre es el mismo.'];
+        }
+        if (BudgetActivityRules::isReceiveOnlyOrCatalogReceiveName($oldName)) {
+            return [
+                'ok' => false,
+                'error' => 'No se puede renombrar: el nombre está en receive-only / catalogReceive (dependencia de configuración).',
+            ];
+        }
+
+        $tenantIds = self::tenantIds($pdo, true);
+        if ($tenantIds === []) {
+            return ['ok' => false, 'error' => 'No hay tenants activos.'];
+        }
+
+        $pdo->beginTransaction();
+        try {
+            foreach ($tenantIds as $tenantId) {
+                if (!self::costCenterExists($pdo, $tenantId, $oldName)) {
+                    $pdo->rollBack();
+
+                    return [
+                        'ok' => false,
+                        'error' => 'Desalineación: el nombre actual no existe en todos los tenants activos. Ejecute sync previo.',
+                    ];
+                }
+                if (self::costCenterExists($pdo, $tenantId, $newName)) {
+                    $pdo->rollBack();
+
+                    return [
+                        'ok' => false,
+                        'error' => 'Conflicto: el nuevo nombre ya existe en algún tenant activo.',
+                    ];
+                }
+            }
+
+            $st = $pdo->prepare(
+                'UPDATE cost_centers SET name = ? WHERE tenant_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?))'
+            );
+            foreach ($tenantIds as $tenantId) {
+                $st->execute([$newName, $tenantId, $oldName]);
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+
+        return [
+            'ok' => true,
+            'changed' => true,
+            'message' => 'Centro de costo renombrado en todos los tenants activos.',
+        ];
+    }
+
+    /**
+     * Renombra una división/coordinación en todos los tenants activos (paridad por nombre+type).
+     *
+     * @param 'estandar'|'coordinacion' $type
+     * @return array{ok: true, changed: bool, message: string}|array{ok: false, error: string}
+     */
+    public static function renameDepartmentAcrossTenants(
+        PDO $pdo,
+        string $oldName,
+        string $newName,
+        string $type,
+    ): array {
+        $oldName = trim($oldName);
+        $newName = trim($newName);
+        if (!in_array($type, ['estandar', 'coordinacion'], true)) {
+            return ['ok' => false, 'error' => 'Tipo de departamento no válido.'];
+        }
+        if ($oldName === '') {
+            return ['ok' => false, 'error' => 'Nombre actual requerido.'];
+        }
+        if ($newName === '') {
+            return ['ok' => false, 'error' => 'Nombre requerido.'];
+        }
+        if (self::namesEqualInsensitive($oldName, $newName)) {
+            return ['ok' => true, 'changed' => false, 'message' => 'Sin cambios: el nombre es el mismo.'];
+        }
+        if (BudgetActivityRules::isReceiveOnlyOrCatalogReceiveName($oldName)) {
+            return [
+                'ok' => false,
+                'error' => 'No se puede renombrar: el nombre está en receive-only / catalogReceive (dependencia de configuración).',
+            ];
+        }
+
+        $tenantIds = self::tenantIds($pdo, true);
+        if ($tenantIds === []) {
+            return ['ok' => false, 'error' => 'No hay tenants activos.'];
+        }
+
+        $label = $type === 'coordinacion' ? 'Coordinación' : 'División';
+
+        $pdo->beginTransaction();
+        try {
+            foreach ($tenantIds as $tenantId) {
+                if (!self::departmentExists($pdo, $tenantId, $oldName, $type)) {
+                    $pdo->rollBack();
+
+                    return [
+                        'ok' => false,
+                        'error' => 'Desalineación: el nombre actual no existe en todos los tenants activos. Ejecute sync previo.',
+                    ];
+                }
+                if (self::departmentExists($pdo, $tenantId, $newName, $type)) {
+                    $pdo->rollBack();
+
+                    return [
+                        'ok' => false,
+                        'error' => 'Conflicto: el nuevo nombre ya existe en algún tenant activo.',
+                    ];
+                }
+            }
+
+            $st = $pdo->prepare(
+                'UPDATE departments SET name = ? WHERE tenant_id = ? AND type = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?))'
+            );
+            foreach ($tenantIds as $tenantId) {
+                $st->execute([$newName, $tenantId, $type, $oldName]);
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+
+        return [
+            'ok' => true,
+            'changed' => true,
+            'message' => $label . ' renombrada en todos los tenants activos.',
+        ];
+    }
+
     /**
      * Opciones Nº Cta para OC: cuentas del tenant (account_codes), o plan_cuenta global si no hay filas.
      *

@@ -173,6 +173,17 @@ final class BudgetActivityRules
     }
 
     /**
+     * Gate rename de catálogo org: nombre en budget_coord_receive_only_names o catalogReceive.
+     * Match case/trim-insensitive (vía receiveOnlyNameKey).
+     */
+    public static function isReceiveOnlyOrCatalogReceiveName(string $name): bool
+    {
+        $key = self::receiveOnlyNameKey($name);
+
+        return $key !== '' && isset(self::receiveOnlyBlockedNameKeySet()[$key]);
+    }
+
+    /**
      * @param list<array{id: int, name: string, type: string, parent_id: int|null}> $departments
      * @return list<array{id: int, name: string, type: string, parent_id: int|null}>
      */
