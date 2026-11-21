@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 /**
- * Plantilla CSV + validacion previa (CAP-4) de actividades de Presupuesto para super admin.
- * Sin INSERT: la alta confirmada queda para historia 3.
+ * Plantilla CSV, validacion previa (CAP-4) y confirmacion de altas (CAP-3)
+ * de actividades de Presupuesto para super admin.
  */
 final class AdminBudgetActivityCsvImportService
 {
@@ -12,6 +12,12 @@ final class AdminBudgetActivityCsvImportService
     public const UTF8_BOM = "\xEF\xBB\xBF";
 
     private const MAX_BYTES = 2_097_152;
+
+    /**
+     * Solo smoke CLI: si coincide con el activity_number del grupo, el INSERT lanza
+     * (simula fallo mid-batch tras validate OK). Se ignora/limpia si PHP_SAPI !== 'cli'.
+     */
+    public static ?string $debugFailInsertActivityNumber = null;
 
     /**
      * Encabezados canónicos de la plantilla (separador ;).
@@ -185,6 +191,141 @@ final class AdminBudgetActivityCsvImportService
     }
 
     /**
+     * Confirma altas desde CSV subido (multipart): re-valida e inserta solo si ok.
+     *
+     * @param array{error?: int, tmp_name?: string, size?: int, name?: string} $file
+     * @return array{
+     *   ok: bool,
+     *   created: list<array{activity_number: string, header_id: int, created_by: int}>,
+     *   errors: list<array{line?: int|null, group: string, activity_number?: string|null, message: string}>
+     * }
+     */
+    public static function importFromUploadedFile(PDO $pdo, int $tenantId, array $file): array
+    {
+        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            return self::failImportResult('No se recibio un archivo CSV valido. Debe re-subir el CSV para confirmar.');
+        }
+        $size = (int) ($file['size'] ?? 0);
+        if ($size <= 0) {
+            return self::failImportResult('El archivo CSV esta vacio. Debe re-subir el CSV para confirmar.');
+        }
+        if ($size > self::MAX_BYTES) {
+            return self::failImportResult('El archivo supera el limite de 2 MB.');
+        }
+        $tmp = (string) ($file['tmp_name'] ?? '');
+        if ($tmp === '' || !is_uploaded_file($tmp)) {
+            return self::failImportResult('Archivo de carga invalido.');
+        }
+
+        return self::importUploadedCsv($pdo, $tenantId, $tmp);
+    }
+
+    /**
+     * Re-valida el CSV e inserta grupos OK. Si la validacion falla, cero INSERT.
+     *
+     * @return array{
+     *   ok: bool,
+     *   created: list<array{activity_number: string, header_id: int, created_by: int}>,
+     *   errors: list<array{line?: int|null, group: string, activity_number?: string|null, message: string}>
+     * }
+     */
+    public static function importUploadedCsv(PDO $pdo, int $tenantId, string $csvOrPath): array
+    {
+        $validation = self::validateUploadedCsv($pdo, $tenantId, $csvOrPath);
+        if (!($validation['ok'] ?? false)) {
+            return [
+                'ok' => false,
+                'created' => [],
+                'errors' => $validation['errors'],
+            ];
+        }
+
+        try {
+            if (is_file($csvOrPath)) {
+                $csv = utf8_file_contents($csvOrPath);
+            } else {
+                $csv = $csvOrPath;
+                if (str_starts_with($csv, self::UTF8_BOM)) {
+                    $csv = substr($csv, strlen(self::UTF8_BOM));
+                }
+            }
+        } catch (Throwable $e) {
+            return self::failImportResult('No se pudo leer el CSV: ' . $e->getMessage());
+        }
+
+        $csv = trim($csv);
+        try {
+            $parsed = self::parseTemplateCsv($csv);
+        } catch (RuntimeException $e) {
+            return self::failImportResult($e->getMessage());
+        }
+
+        $maps = self::loadCatalogMaps($pdo, $tenantId);
+        $grouped = self::groupRows($parsed['rows']);
+        $created = [];
+        $errors = $grouped['row_errors'];
+
+        if (PHP_SAPI !== 'cli') {
+            self::$debugFailInsertActivityNumber = null;
+        }
+
+        foreach ($grouped['groups'] as $groupKey => $group) {
+            $analyzed = self::analyzeGroup($pdo, $tenantId, $groupKey, $group, $maps);
+            if ($analyzed['errors'] !== []) {
+                // Tras validate OK no deberia ocurrir; detener inserts de grupos siguientes.
+                foreach ($analyzed['errors'] as $err) {
+                    $errors[] = $err;
+                }
+                break;
+            }
+            $payload = $analyzed['payload'];
+            if ($payload === null) {
+                $errors[] = [
+                    'line' => $group['lines'][0]['line'] ?? null,
+                    'group' => $group['num'] !== '' ? (string) $group['num'] : $groupKey,
+                    'activity_number' => $group['activity_number'],
+                    'message' => 'No se pudo resolver el grupo para insertar.',
+                ];
+                break;
+            }
+            try {
+                if (self::$debugFailInsertActivityNumber !== null
+                    && self::$debugFailInsertActivityNumber === $payload['activity_number']
+                ) {
+                    throw new RuntimeException('simulated insert failure');
+                }
+                $hid = BudgetService::createActivity(
+                    $pdo,
+                    $tenantId,
+                    $payload['header'],
+                    $payload['details'],
+                    $payload['year'],
+                    $payload['created_by'],
+                    $payload['activity_number'],
+                );
+                $created[] = [
+                    'activity_number' => $payload['activity_number'],
+                    'header_id' => $hid,
+                    'created_by' => $payload['created_by'],
+                ];
+            } catch (Throwable $e) {
+                $errors[] = [
+                    'line' => $group['lines'][0]['line'] ?? null,
+                    'group' => $group['num'] !== '' ? (string) $group['num'] : $groupKey,
+                    'activity_number' => $payload['activity_number'],
+                    'message' => 'Error al crear la actividad: ' . $e->getMessage(),
+                ];
+            }
+        }
+
+        return [
+            'ok' => $errors === [],
+            'created' => $created,
+            'errors' => $errors,
+        ];
+    }
+
+    /**
      * @return array{ok: false, would_upload: 0, errors: list<array{line?: int|null, group: string, activity_number?: string|null, message: string}>}
      */
     private static function failResult(string $message): array
@@ -192,6 +333,27 @@ final class AdminBudgetActivityCsvImportService
         return [
             'ok' => false,
             'would_upload' => 0,
+            'errors' => [[
+                'line' => null,
+                'group' => '',
+                'activity_number' => null,
+                'message' => $message,
+            ]],
+        ];
+    }
+
+    /**
+     * @return array{
+     *   ok: false,
+     *   created: list<array{activity_number: string, header_id: int, created_by: int}>,
+     *   errors: list<array{line?: int|null, group: string, activity_number?: string|null, message: string}>
+     * }
+     */
+    private static function failImportResult(string $message): array
+    {
+        return [
+            'ok' => false,
+            'created' => [],
             'errors' => [[
                 'line' => null,
                 'group' => '',
@@ -340,6 +502,33 @@ final class AdminBudgetActivityCsvImportService
      */
     private static function validateGroup(PDO $pdo, int $tenantId, string $groupKey, array $group, array $maps): array
     {
+        return self::analyzeGroup($pdo, $tenantId, $groupKey, $group, $maps)['errors'];
+    }
+
+    /**
+     * Resuelve cabecera/detalle/unidad del grupo; si hay errores, payload=null.
+     *
+     * @param array{activity_number: string, num: string, year: int, year_raw: string, lines: list<array{line: int, cells: array<string, string>}>} $group
+     * @param array{
+     *   cost_centers: array<string, int>,
+     *   activities: array<string, int>,
+     *   accounts: array<string, int>,
+     *   accounts_by_id: array<int, int>,
+     *   departments: array<string, array{id: int, name: string, type: string, parent_id: int|null}>
+     * } $maps
+     * @return array{
+     *   errors: list<array{line?: int|null, group: string, activity_number?: string|null, message: string}>,
+     *   payload: null|array{
+     *     activity_number: string,
+     *     year: int,
+     *     created_by: int,
+     *     header: array{month: int, cost_center_id?: int|null, activity_id: int, division_id?: int|null, department_id?: int|null, observations?: string|null},
+     *     details: list<array{account_code_id: int, quantity: float, unit_price: float, observation: string}>
+     *   }
+     * }
+     */
+    private static function analyzeGroup(PDO $pdo, int $tenantId, string $groupKey, array $group, array $maps): array
+    {
         $errors = [];
         $actNum = $group['activity_number'];
         $firstLine = $group['lines'][0]['line'] ?? null;
@@ -357,7 +546,8 @@ final class AdminBudgetActivityCsvImportService
 
         if ($group['num'] === '' || $actNum === 'sin-num') {
             $push('Falta num (numero de actividad).');
-            return $errors;
+
+            return ['errors' => $errors, 'payload' => null];
         }
 
         $yearRaw = (string) ($group['year_raw'] ?? '');
@@ -420,18 +610,21 @@ final class AdminBudgetActivityCsvImportService
         $creatorName = trim((string) ($lead['creator_name'] ?? ''));
         if ($creatorTypeRaw === '' || $creatorName === '') {
             $push('creator_type y creator_name son obligatorios.');
-            return $errors;
+
+            return ['errors' => $errors, 'payload' => null];
         }
         if (!in_array($creatorTypeRaw, ['division', 'coordinacion'], true)) {
             $push('creator_type debe ser division o coordinacion.');
-            return $errors;
+
+            return ['errors' => $errors, 'payload' => null];
         }
 
         $creatorExpectedType = $creatorTypeRaw === 'division' ? 'estandar' : 'coordinacion';
         $creatorEntry = $maps['departments'][self::normKey($creatorName)] ?? null;
         if ($creatorEntry === null) {
             $push('Unidad creadora no encontrada: ' . $creatorName);
-            return $errors;
+
+            return ['errors' => $errors, 'payload' => null];
         }
         if (($creatorEntry['type'] ?? '') !== $creatorExpectedType) {
             $push(
@@ -439,7 +632,8 @@ final class AdminBudgetActivityCsvImportService
                 . ($creatorTypeRaw === 'division' ? 'division (estandar)' : 'coordinacion')
                 . ' en el tenant.'
             );
-            return $errors;
+
+            return ['errors' => $errors, 'payload' => null];
         }
         $creatorDeptId = (int) $creatorEntry['id'];
 
@@ -447,7 +641,8 @@ final class AdminBudgetActivityCsvImportService
             && !BudgetActivityRules::creatorCoordinationMayCreateBudget($pdo, $tenantId, $creatorDeptId)
         ) {
             $push(BudgetActivityRules::errorMessage('coord_receive_only'));
-            return $errors;
+
+            return ['errors' => $errors, 'payload' => null];
         }
 
         $divisionName = trim((string) ($lead['division_name'] ?? ''));
@@ -503,11 +698,14 @@ final class AdminBudgetActivityCsvImportService
             $header['department_id'] = $creatorDeptId;
         }
 
+        $normalizedHeader = null;
         if ($activityId > 0 && $month >= 1 && $month <= 12 && ($header['division_id'] ?? null) !== null) {
             $norm = BudgetActivityRules::validateAndNormalizeHeader($pdo, $tenantId, $header, $creatorDeptId);
             if (!($norm['ok'] ?? false)) {
                 $code = (string) ($norm['error'] ?? '');
                 $push(BudgetActivityRules::errorMessage($code));
+            } else {
+                $normalizedHeader = $norm['header'];
             }
         }
 
@@ -519,6 +717,7 @@ final class AdminBudgetActivityCsvImportService
             $push('El activity_number ya existe en el tenant (solo altas): ' . $actNum);
         }
 
+        $details = [];
         $detailCount = 0;
         foreach ($group['lines'] as $row) {
             $cells = $row['cells'];
@@ -538,22 +737,49 @@ final class AdminBudgetActivityCsvImportService
             if ($accountId <= 0) {
                 $push('Cuenta no encontrada: ' . $accountRaw, $line);
             }
+            $qtyOk = true;
+            $priceOk = true;
             if ($qtyRaw === '' || !is_numeric(str_replace(',', '.', $qtyRaw))) {
                 $push('qty invalido.', $line);
+                $qtyOk = false;
             } elseif ((float) str_replace(',', '.', $qtyRaw) < 0) {
                 $push('qty no puede ser negativo.', $line);
+                $qtyOk = false;
             }
             if ($priceRaw === '' || !is_numeric(str_replace(',', '.', $priceRaw))) {
                 $push('unit_price invalido.', $line);
+                $priceOk = false;
             } elseif ((float) str_replace(',', '.', $priceRaw) < 0) {
                 $push('unit_price no puede ser negativo.', $line);
+                $priceOk = false;
+            }
+            if ($accountId > 0 && $qtyOk && $priceOk) {
+                $details[] = [
+                    'account_code_id' => $accountId,
+                    'quantity' => (float) str_replace(',', '.', $qtyRaw),
+                    'unit_price' => (float) str_replace(',', '.', $priceRaw),
+                    'observation' => mb_substr(trim((string) ($cells['detail_label'] ?? '')), 0, 255),
+                ];
             }
         }
         if ($detailCount === 0) {
             $push('El grupo requiere al menos una linea de detalle (account_code/qty/unit_price).');
         }
 
-        return $errors;
+        if ($errors !== [] || $normalizedHeader === null || $details === []) {
+            return ['errors' => $errors, 'payload' => null];
+        }
+
+        return [
+            'errors' => [],
+            'payload' => [
+                'activity_number' => $actNum,
+                'year' => (int) $group['year'],
+                'created_by' => $creatorDeptId,
+                'header' => $normalizedHeader,
+                'details' => $details,
+            ],
+        ];
     }
 
     /**

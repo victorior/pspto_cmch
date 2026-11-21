@@ -46,19 +46,20 @@ if (isset($_GET['sample_csv']) && (string) $_GET['sample_csv'] === '1') {
 }
 
 $validationReport = null;
-$validationFlash = '';
-$validationFlashKind = '';
+$importReport = null;
+$flash = '';
+$flashKind = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_post_csrf();
     $action = (string) ($_POST['action'] ?? '');
     if ($action === 'validate_csv') {
         if (!AdminAccess::canManageTenant($pdo, $uid, $tenantId)) {
-            $validationFlash = 'No tiene permisos para ese tenant.';
-            $validationFlashKind = 'error';
+            $flash = 'No tiene permisos para ese tenant.';
+            $flashKind = 'error';
         } elseif (!isset($_FILES['csv_file'])) {
-            $validationFlash = 'Seleccione un archivo CSV.';
-            $validationFlashKind = 'error';
+            $flash = 'Seleccione un archivo CSV.';
+            $flashKind = 'error';
             $validationReport = [
                 'ok' => false,
                 'would_upload' => 0,
@@ -76,19 +77,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_FILES['csv_file'],
             );
             if ($validationReport['ok']) {
-                $validationFlash = 'Validacion OK: '
+                $flash = 'Validacion OK: '
                     . (int) $validationReport['would_upload']
-                    . ' grupo(s) listos para subir. La confirmacion de alta llegara en la siguiente entrega.';
-                $validationFlashKind = 'ok';
+                    . ' grupo(s) listos para subir. Re-suba el mismo CSV y confirme la carga.';
+                $flashKind = 'ok';
             } else {
-                $validationFlash = 'Validacion con errores: corrija el CSV y vuelva a validar. No se habilita la carga.';
-                $validationFlashKind = 'error';
+                $flash = 'Validacion con errores: corrija el CSV y vuelva a validar. No se habilita la carga.';
+                $flashKind = 'error';
             }
         }
+    } elseif ($action === 'confirm_csv') {
+        if (!AdminAccess::canManageTenant($pdo, $uid, $tenantId)) {
+            $flash = 'No tiene permisos para ese tenant.';
+            $flashKind = 'error';
+        } elseif (!isset($_FILES['csv_file'])) {
+            $flash = 'Debe re-subir el archivo CSV para confirmar la carga.';
+            $flashKind = 'error';
+            $importReport = [
+                'ok' => false,
+                'created' => [],
+                'errors' => [[
+                    'line' => null,
+                    'group' => '',
+                    'activity_number' => null,
+                    'message' => 'Debe re-subir el archivo CSV para confirmar la carga.',
+                ]],
+            ];
+        } else {
+            $importReport = AdminBudgetActivityCsvImportService::importFromUploadedFile(
+                $pdo,
+                $tenantId,
+                $_FILES['csv_file'],
+            );
+            $createdCount = count($importReport['created'] ?? []);
+            if ($importReport['ok'] && $createdCount > 0) {
+                $flash = 'Carga confirmada: se crearon ' . $createdCount . ' actividad(es).';
+                $flashKind = 'ok';
+            } elseif ($createdCount > 0) {
+                $flash = 'Carga parcial: se crearon ' . $createdCount
+                    . ' actividad(es); revise los errores de los grupos no insertados.';
+                $flashKind = 'error';
+            } else {
+                $flash = 'No se creo ninguna actividad. Corrija el CSV y vuelva a validar.';
+                $flashKind = 'error';
+            }
+        }
+    } else {
+        $flash = 'Accion no reconocida.';
+        $flashKind = 'error';
     }
 }
 
 $sampleHref = admin_href('budget_activities_import.php?sample_csv=1&tenant_id=' . $tenantId);
+$showConfirm = is_array($validationReport) && ($validationReport['ok'] ?? false);
 
 $layoutTitle = 'Carga actividades';
 $layoutRealm = 'admin';
@@ -100,6 +141,32 @@ $layoutBreadcrumb = [
 ];
 $layoutNav = AdminAccess::navItems('budget_activities_import');
 require dirname(__DIR__) . '/inc/layout_top.php';
+
+/**
+ * @param list<array{line?: int|null, group?: string, activity_number?: string|null, message?: string}> $errList
+ */
+$renderErrorList = static function (array $errList): void {
+    if ($errList === []) {
+        return;
+    }
+    echo '<h3 class="h6">Errores</h3>';
+    echo '<ul style="margin:0.25rem 0 0;padding-left:1.25rem;">';
+    foreach ($errList as $err) {
+        $bits = [];
+        if (!empty($err['line'])) {
+            $bits[] = 'linea ' . (int) $err['line'];
+        }
+        if (($err['group'] ?? '') !== '') {
+            $bits[] = 'grupo ' . (string) $err['group'];
+        }
+        if (!empty($err['activity_number'])) {
+            $bits[] = (string) $err['activity_number'];
+        }
+        $prefix = $bits !== [] ? ('[' . implode(' · ', $bits) . '] ') : '';
+        echo '<li>' . h($prefix . (string) ($err['message'] ?? '')) . '</li>';
+    }
+    echo '</ul>';
+};
 ?>
 <div class="card">
   <?php if ($tenantFallbackNotice): ?>
@@ -107,8 +174,8 @@ require dirname(__DIR__) . '/inc/layout_top.php';
   <?php endif; ?>
   <p style="color:var(--muted);font-size:0.9rem;margin-top:0;">
     Solo super admin. Elija el tenant, descargue la plantilla CSV (UTF-8), complete las actividades
-    indicando Division o Coordinacion por fila, valide el archivo (sin insertar) y, cuando no haya errores,
-    confirme la carga en una entrega posterior.
+    indicando Division o Coordinacion por fila, valide el archivo y, si no hay errores, re-suba el CSV
+    para confirmar las altas.
   </p>
 
   <?php if (count($tenants) > 1): ?>
@@ -148,10 +215,30 @@ require dirname(__DIR__) . '/inc/layout_top.php';
     <button type="submit" class="btn btn-primary">Validar</button>
   </form>
 
-  <?php if ($validationFlash !== ''): ?>
-  <p style="margin-top:1rem;color:<?= $validationFlashKind === 'ok' ? 'var(--ok, #2a7)' : 'var(--danger, #a33)' ?>;">
-    <?= h($validationFlash) ?>
+  <?php if ($flash !== ''): ?>
+  <p style="margin-top:1rem;color:<?= $flashKind === 'ok' ? 'var(--ok, #2a7)' : 'var(--danger, #a33)' ?>;">
+    <?= h($flash) ?>
   </p>
+  <?php endif; ?>
+
+  <?php if (is_array($importReport)): ?>
+  <?php if (($importReport['created'] ?? []) !== []): ?>
+  <h3 class="h6" style="margin-top:1rem;">Actividades creadas</h3>
+  <ul style="margin:0.25rem 0 0;padding-left:1.25rem;">
+    <?php foreach ($importReport['created'] as $row): ?>
+    <li>
+      <?= h((string) ($row['activity_number'] ?? '')) ?>
+      (id <?= (int) ($row['header_id'] ?? 0) ?>, unidad <?= (int) ($row['created_by'] ?? 0) ?>)
+    </li>
+    <?php endforeach; ?>
+  </ul>
+  <?php endif; ?>
+  <?php
+    $importErrors = $importReport['errors'] ?? [];
+    if ($importErrors !== []) {
+        $renderErrorList($importErrors);
+    }
+  ?>
   <?php endif; ?>
 
   <?php if (is_array($validationReport)): ?>
@@ -160,31 +247,23 @@ require dirname(__DIR__) . '/inc/layout_top.php';
     <strong><?= (int) $validationReport['would_upload'] ?></strong>
   </p>
   <?php
-    $errList = $validationReport['errors'] ?? [];
-    if ($errList !== []):
+    $renderErrorList($validationReport['errors'] ?? []);
   ?>
-  <h3 class="h6">Errores</h3>
-  <ul style="margin:0.25rem 0 0;padding-left:1.25rem;">
-    <?php foreach ($errList as $err): ?>
-    <li>
-      <?php
-        $bits = [];
-        if (!empty($err['line'])) {
-            $bits[] = 'linea ' . (int) $err['line'];
-        }
-        if (($err['group'] ?? '') !== '') {
-            $bits[] = 'grupo ' . (string) $err['group'];
-        }
-        if (!empty($err['activity_number'])) {
-            $bits[] = (string) $err['activity_number'];
-        }
-        $prefix = $bits !== [] ? ('[' . implode(' · ', $bits) . '] ') : '';
-        echo h($prefix . (string) ($err['message'] ?? ''));
-      ?>
-    </li>
-    <?php endforeach; ?>
-  </ul>
   <?php endif; ?>
+
+  <?php if ($showConfirm): ?>
+  <h2 class="h6" style="margin-top:1.25rem;">Confirmar carga</h2>
+  <p style="color:var(--muted);font-size:0.85rem;">
+    Por seguridad no se guarda el archivo en sesion: vuelva a seleccionar el CSV limpio y confirme.
+  </p>
+  <form method="post" enctype="multipart/form-data" action="<?= h(admin_href('budget_activities_import.php?tenant_id=' . $tenantId)) ?>" class="page-actions" style="flex-wrap:wrap;gap:0.5rem;">
+    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="action" value="confirm_csv">
+    <input type="hidden" name="tenant_id" value="<?= (int) $tenantId ?>">
+    <label for="csv_file_confirm">Archivo CSV (re-subir)</label>
+    <input type="file" id="csv_file_confirm" name="csv_file" accept=".csv,text/csv" required>
+    <button type="submit" class="btn btn-primary">Confirmar altas</button>
+  </form>
   <?php endif; ?>
 </div>
 <p><a href="<?= h(AdminAccess::adminHomeHref()) ?>" class="btn btn-back">&larr; Inicio</a></p>
