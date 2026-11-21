@@ -25,3 +25,31 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1-elegir-tipo-de-documento-y-persistir-perfil-base.md`
   summary: FIX — ocultar Historial OC anuladas en activity_view / oc budget (solo vigentes)
   evidence: Pedido walkthrough 1.1; bloque UI removido; API allocationsForHeaderVoided se mantiene
+
+- source_spec: `_bmad-output/specs/spec-carga-masiva-actividades-presupuesto/stories/1-pantalla-admin-plantilla-csv.md`
+  summary: Plantilla CSV de ejemplo no se personaliza con catalogos del tenant elegido
+  evidence: sampleCsvContent() es generico; tenant_id en URL es contexto UI; alinear ejemplos a catalogs queda para historias 2-3
+
+- source_spec: `_bmad-output/specs/spec-carga-masiva-actividades-presupuesto/stories/1-pantalla-admin-plantilla-csv.md`
+  summary: Nav Carga actividades no conserva tenant_id al navegar
+  evidence: AdminAccess::navItems es global; requeriria sesion o query en todos los links; fuera del minimo de Story 1
+
+- source_spec: `_bmad-output/specs/spec-carga-masiva-actividades-presupuesto/stories/1-pantalla-admin-plantilla-csv.md`
+  summary: Sin test automatico de alineacion templateHeaders vs plantilla-import.md
+  evidence: Contrato documentado; drift se detectara al implementar validacion Story 2
+
+- source_spec: `_bmad-output/specs/spec-carga-masiva-actividades-presupuesto/stories/2-validacion-previa-compacta.md`
+  summary: Sin smoke HTTP del POST validate_csv (CSRF, flash, reporte UI) en budget_activities_import.php
+  evidence: Repo sin harness de sesion admin; smoke CLI cubre servicio; UI queda a chequeo manual (mismo patron que import usuarios)
+
+- source_spec: `_bmad-output/specs/spec-carga-masiva-actividades-presupuesto/stories/3-confirmar-altas-de-actividades.md`
+  summary: Sin smoke HTTP del POST confirm_csv / CTA $showConfirm en budget_activities_import.php
+  evidence: Mismo hueco que validate_csv; CLI cubre importUploadedCsv; falta harness sesion admin
+
+- source_spec: `_bmad-output/specs/spec-carga-masiva-actividades-presupuesto/stories/3-confirmar-altas-de-actividades.md`
+  summary: syncActivitySequenceFromNumber sin FOR UPDATE (posible race concurrente)
+  evidence: Copia el patron Records2026; nextActivityNumber si usa FOR UPDATE; carga SA tipicamente serial
+
+- source_spec: `_bmad-output/specs/spec-carga-masiva-actividades-presupuesto/stories/3-confirmar-altas-de-actividades.md`
+  summary: Ventana TOCTOU entre validate OK e INSERT (catalogo/duplicado concurrente)
+  evidence: maybe-false medium; re-validate mitiga; no hay test de carrera

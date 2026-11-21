@@ -929,6 +929,8 @@ final class BudgetService
 
     /**
      * Crea cabecera + detalles (cabecera ya validada por BudgetActivityRules).
+     * Si $activityNumber viene informado, se conserva ese numero (carga CSV) y se sincroniza
+     * activity_sequences al maximo del año; si es null, se consume la secuencia como en UI manual.
      *
      * @param array{month: int, cost_center_id?: int|null, activity_id: int, division_id?: int|null, department_id?: int|null, observations?: string|null} $header
      * @param list<array{account_code_id: int, quantity: float, unit_price: float, observation: string}> $details
@@ -940,11 +942,16 @@ final class BudgetService
         array $details,
         int $year,
         ?int $createdByDepartmentId = null,
+        ?string $activityNumber = null,
     ): int {
         if ($details === []) {
             throw new InvalidArgumentException('At least one detail line is required');
         }
-        $actNum = self::nextActivityNumber($pdo, $tenantId, $year);
+        $fixedNumber = $activityNumber !== null ? trim($activityNumber) : '';
+        $useFixedNumber = $fixedNumber !== '';
+        $actNum = $useFixedNumber
+            ? $fixedNumber
+            : self::nextActivityNumber($pdo, $tenantId, $year);
         $pdo->beginTransaction();
         try {
             $createdBy = $createdByDepartmentId !== null && $createdByDepartmentId > 0
@@ -1052,6 +1059,9 @@ final class BudgetService
                     $row['observation'] ?? '',
                 ]);
             }
+            if ($useFixedNumber) {
+                self::syncActivitySequenceFromNumber($pdo, $tenantId, $year, $actNum);
+            }
             $pdo->commit();
 
             return $hid;
@@ -1060,6 +1070,37 @@ final class BudgetService
                 $pdo->rollBack();
             }
             throw $e;
+        }
+    }
+
+    /**
+     * Alinea activity_sequences al maximo base numerico del año tras un INSERT con numero fijo.
+     * Patron equivalente a Records2026ImportService::syncActivitySequence.
+     */
+    private static function syncActivitySequenceFromNumber(
+        PDO $pdo,
+        int $tenantId,
+        int $year,
+        string $activityNumber,
+    ): void {
+        $base = 0;
+        if (preg_match('/^(\d+)-\d{4}$/', $activityNumber, $m) === 1) {
+            $base = (int) $m[1];
+        } elseif (preg_match('/^\d+$/', $activityNumber) === 1) {
+            $base = (int) $activityNumber;
+        }
+        if ($base <= 0) {
+            return;
+        }
+        $st = $pdo->prepare('SELECT last_number FROM activity_sequences WHERE tenant_id = ? AND year = ?');
+        $st->execute([$tenantId, $year]);
+        $current = $st->fetchColumn();
+        if ($current === false) {
+            $pdo->prepare('INSERT INTO activity_sequences (tenant_id, year, last_number) VALUES (?, ?, ?)')
+                ->execute([$tenantId, $year, $base]);
+        } elseif ((int) $current < $base) {
+            $pdo->prepare('UPDATE activity_sequences SET last_number = ? WHERE tenant_id = ? AND year = ?')
+                ->execute([$base, $tenantId, $year]);
         }
     }
 
