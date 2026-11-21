@@ -457,6 +457,180 @@ final class CatalogService
     }
 
     /**
+     * Elimina un centro de costo en todos los tenants activos (paridad por nombre).
+     * Bloquea si hay budget_headers con cost_center_id local (CAP-2).
+     *
+     * @return array{ok: true, changed: bool, message: string}|array{ok: false, error: string}
+     */
+    public static function deleteCostCenterAcrossTenants(PDO $pdo, string $name): array
+    {
+        $name = trim($name);
+        if ($name === '') {
+            return ['ok' => false, 'error' => 'Nombre requerido.'];
+        }
+        if (BudgetActivityRules::isReceiveOnlyOrCatalogReceiveName($name)) {
+            return [
+                'ok' => false,
+                'error' => 'No se puede eliminar: el nombre está en receive-only / catalogReceive (dependencia de configuración).',
+            ];
+        }
+
+        $tenantIds = self::tenantIds($pdo, true);
+        if ($tenantIds === []) {
+            return ['ok' => false, 'error' => 'No hay tenants activos.'];
+        }
+
+        $pdo->beginTransaction();
+        try {
+            foreach ($tenantIds as $tenantId) {
+                if (!self::costCenterExists($pdo, $tenantId, $name)) {
+                    $pdo->rollBack();
+
+                    return [
+                        'ok' => false,
+                        'error' => 'Desalineación: el nombre actual no existe en todos los tenants activos. Ejecute sync previo.',
+                    ];
+                }
+
+                $st = $pdo->prepare(
+                    'SELECT id FROM cost_centers WHERE tenant_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?))'
+                );
+                $st->execute([$tenantId, $name]);
+                $localIds = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+
+                $chk = $pdo->prepare(
+                    'SELECT 1 FROM budget_headers WHERE tenant_id = ? AND cost_center_id = ? LIMIT 1'
+                );
+                foreach ($localIds as $localId) {
+                    $chk->execute([$tenantId, $localId]);
+                    if ($chk->fetchColumn()) {
+                        $pdo->rollBack();
+
+                        return [
+                            'ok' => false,
+                            'error' => 'No se puede eliminar: hay actividades de Presupuesto asociadas. Elimínelas antes.',
+                        ];
+                    }
+                }
+            }
+
+            $del = $pdo->prepare(
+                'DELETE FROM cost_centers WHERE tenant_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?))'
+            );
+            foreach ($tenantIds as $tenantId) {
+                $del->execute([$tenantId, $name]);
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+
+        return [
+            'ok' => true,
+            'changed' => true,
+            'message' => 'Centro de costo eliminado en todos los tenants activos.',
+        ];
+    }
+
+    /**
+     * Elimina una división/coordinación en todos los tenants activos (paridad por nombre+type).
+     * Guard CAP-2: división → division_id o created_by; coordinación → department_id o created_by.
+     *
+     * @param 'estandar'|'coordinacion' $type
+     * @return array{ok: true, changed: bool, message: string}|array{ok: false, error: string}
+     */
+    public static function deleteDepartmentAcrossTenants(PDO $pdo, string $name, string $type): array
+    {
+        $name = trim($name);
+        if (!in_array($type, ['estandar', 'coordinacion'], true)) {
+            return ['ok' => false, 'error' => 'Tipo de departamento no válido.'];
+        }
+        if ($name === '') {
+            return ['ok' => false, 'error' => 'Nombre requerido.'];
+        }
+        if (BudgetActivityRules::isReceiveOnlyOrCatalogReceiveName($name)) {
+            return [
+                'ok' => false,
+                'error' => 'No se puede eliminar: el nombre está en receive-only / catalogReceive (dependencia de configuración).',
+            ];
+        }
+
+        $tenantIds = self::tenantIds($pdo, true);
+        if ($tenantIds === []) {
+            return ['ok' => false, 'error' => 'No hay tenants activos.'];
+        }
+
+        $label = $type === 'coordinacion' ? 'Coordinación' : 'División';
+
+        $pdo->beginTransaction();
+        try {
+            foreach ($tenantIds as $tenantId) {
+                if (!self::departmentExists($pdo, $tenantId, $name, $type)) {
+                    $pdo->rollBack();
+
+                    return [
+                        'ok' => false,
+                        'error' => 'Desalineación: el nombre actual no existe en todos los tenants activos. Ejecute sync previo.',
+                    ];
+                }
+
+                $st = $pdo->prepare(
+                    'SELECT id FROM departments WHERE tenant_id = ? AND type = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?))'
+                );
+                $st->execute([$tenantId, $type, $name]);
+                $localIds = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+
+                if ($type === 'estandar') {
+                    $chk = $pdo->prepare(
+                        'SELECT 1 FROM budget_headers
+                         WHERE tenant_id = ? AND (division_id = ? OR created_by = ?)
+                         LIMIT 1'
+                    );
+                } else {
+                    $chk = $pdo->prepare(
+                        'SELECT 1 FROM budget_headers
+                         WHERE tenant_id = ? AND (department_id = ? OR created_by = ?)
+                         LIMIT 1'
+                    );
+                }
+                foreach ($localIds as $localId) {
+                    $chk->execute([$tenantId, $localId, $localId]);
+                    if ($chk->fetchColumn()) {
+                        $pdo->rollBack();
+
+                        return [
+                            'ok' => false,
+                            'error' => 'No se puede eliminar: hay actividades de Presupuesto asociadas. Elimínelas antes.',
+                        ];
+                    }
+                }
+            }
+
+            $del = $pdo->prepare(
+                'DELETE FROM departments WHERE tenant_id = ? AND type = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?))'
+            );
+            foreach ($tenantIds as $tenantId) {
+                $del->execute([$tenantId, $type, $name]);
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+
+        return [
+            'ok' => true,
+            'changed' => true,
+            'message' => $label . ' eliminada en todos los tenants activos.',
+        ];
+    }
+
+    /**
      * Opciones Nº Cta para OC: cuentas del tenant (account_codes), o plan_cuenta global si no hay filas.
      *
      * @return list<array{id:int, name:string}>
