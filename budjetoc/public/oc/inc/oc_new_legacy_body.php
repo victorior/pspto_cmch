@@ -18,6 +18,8 @@ declare(strict_types=1);
 /** @var string $noteDefault */
 /** @var string $reqDefault */
 /** @var string $folioYearDefault */
+/** @var string $taxDocTypeDefault */
+/** @var bool $taxDocTypeRequired */
 /** @var list<array<string, mixed>> $initialLines */
 /** @var list<array<string, mixed>> $initialBudget */
 ?>
@@ -248,10 +250,14 @@ declare(strict_types=1);
       </div>
 
       <div class="form-group row">
-        <label for="factura_nota" class="col-md-1 control-label">Nota</label>
+        <label for="tax_doc_type" class="col-md-1 control-label">Tipo</label>
         <div class="col-md-3">
-          <input type="text" class="form-control input-sm" name="note" id="factura_nota"
-                 value="<?= h($noteDefault) ?>" placeholder="Nota:" maxlength="500">
+          <select class="form-control input-sm" name="tax_doc_type" id="tax_doc_type"
+                  <?= !empty($taxDocTypeRequired) ? 'required' : '' ?>>
+            <option value="">Seleccione</option>
+            <option value="factura" <?= ($taxDocTypeDefault ?? '') === 'factura' ? 'selected' : '' ?>><?= h(t_es('factura')) ?></option>
+            <option value="boleta" <?= ($taxDocTypeDefault ?? '') === 'boleta' ? 'selected' : '' ?>>Boleta de Honorarios</option>
+          </select>
         </div>
         <label for="folio_year" class="col-md-1 control-label">Folio:</label>
         <div class="col-md-2">
@@ -261,6 +267,14 @@ declare(strict_types=1);
         <label for="numero_oc" class="col-md-1 control-label"><?= h(t_es('n_ordinal')) ?> OC</label>
         <div class="col-md-2">
           <input type="number" class="form-control input-sm" id="numero_oc" value="<?= (int) $nextOc ?>" readonly>
+        </div>
+      </div>
+
+      <div class="form-group row">
+        <label for="factura_nota" class="col-md-1 control-label">Nota</label>
+        <div class="col-md-3">
+          <input type="text" class="form-control input-sm" name="note" id="factura_nota"
+                 value="<?= h($noteDefault) ?>" placeholder="Nota:" maxlength="500">
         </div>
       </div>
 

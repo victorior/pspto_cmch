@@ -157,6 +157,106 @@ function oc_tax_profile_from_po_lines(array $lines): array
     return oc_tax_profile_iva($subtotal);
 }
 
+/**
+ * Campos base a persistir segun tipo de documento elegido (story 1.1).
+ * Factura → iva/19; Boleta → retencion + % provisional del helper legado.
+ *
+ * @return array{tax_doc_type: string, tax_mode: string, tax_percent: float}
+ */
+function oc_tax_profile_base_fields(string $docType): array
+{
+    $docType = strtolower(trim($docType));
+    if ($docType === 'boleta') {
+        return [
+            'tax_doc_type' => 'boleta',
+            'tax_mode' => 'retencion',
+            'tax_percent' => oc_boleta_retencion_rate_percent(''),
+        ];
+    }
+    if ($docType === 'factura') {
+        return [
+            'tax_doc_type' => 'factura',
+            'tax_mode' => 'iva',
+            'tax_percent' => 19.0,
+        ];
+    }
+
+    throw new InvalidArgumentException('Tipo de documento invalido: use factura o boleta.');
+}
+
+/** True si la OC tiene perfil tributario persistido (tipo o modo no vacio). */
+function oc_tax_profile_is_persisted(array $poRow): bool
+{
+    $docType = trim((string) ($poRow['tax_doc_type'] ?? ''));
+    $mode = trim((string) ($poRow['tax_mode'] ?? ''));
+
+    return $docType !== '' || $mode !== '';
+}
+
+/** @param array<int, array<string, mixed>> $lines */
+function oc_tax_lines_subtotal(array $lines): float
+{
+    $subtotal = 0.0;
+    foreach ($lines as $ln) {
+        if (isset($ln['line_total'])) {
+            $subtotal += (float) $ln['line_total'];
+        } else {
+            $subtotal += (float) ($ln['qty'] ?? 0) * (float) ($ln['unit_price'] ?? 0);
+        }
+    }
+
+    return round($subtotal, 4);
+}
+
+/**
+ * Resuelve perfil: persistido si hay tipo/modo; si no, inferencia legado por lineas.
+ *
+ * @param array<string, mixed> $poRow Fila purchase_orders (tax_* opcionales)
+ * @param array<int, array<string, mixed>> $lines
+ * @return array{
+ *   mode: 'iva'|'exento'|'retencion',
+ *   tax_percent: float,
+ *   tax_amount: float,
+ *   total: float,
+ *   subtotal: float,
+ *   tax_label: string,
+ *   doc_type: 'factura'|'boleta'|null
+ * }
+ */
+function oc_tax_profile_resolve(array $poRow, array $lines): array
+{
+    $subtotal = oc_tax_lines_subtotal($lines);
+    $docType = strtolower(trim((string) ($poRow['tax_doc_type'] ?? '')));
+    $mode = strtolower(trim((string) ($poRow['tax_mode'] ?? '')));
+    $percentRaw = $poRow['tax_percent'] ?? null;
+    $percent = ($percentRaw !== null && $percentRaw !== '') ? (float) $percentRaw : null;
+
+    if ($docType !== '' || $mode !== '') {
+        if ($docType === 'boleta' || $mode === 'retencion') {
+            $rate = $percent ?? oc_boleta_retencion_rate_percent('');
+            $prof = oc_tax_profile_retencion($subtotal, $rate);
+            $prof['doc_type'] = 'boleta';
+
+            return $prof;
+        }
+        if ($mode === 'exento') {
+            $prof = oc_tax_profile_exento($subtotal);
+            $prof['doc_type'] = 'factura';
+
+            return $prof;
+        }
+        $prof = oc_tax_profile_iva($subtotal);
+        $prof['doc_type'] = 'factura';
+
+        return $prof;
+    }
+
+    $prof = oc_tax_profile_from_po_lines($lines);
+    $prof['doc_type'] = $prof['mode'] === 'retencion' ? 'boleta' : 'factura';
+
+    return $prof;
+}
+
 /** @return array{mode: 'iva', tax_percent: float, tax_amount: float, total: float, subtotal: float, tax_label: string} */
 function oc_tax_profile_iva(float $subtotal): array
 {

@@ -33,8 +33,9 @@ final class OcPrintView
         $st->execute([$purchaseOrderId, $tenantId]);
         $lines = $st->fetchAll(PDO::FETCH_ASSOC);
 
-        $taxProfile = oc_tax_profile_from_po_lines($lines);
-        $printBoletaFmt = $taxProfile['mode'] === 'retencion';
+        $taxProfile = oc_tax_profile_resolve($po, $lines);
+        $printBoletaFmt = ($taxProfile['doc_type'] ?? null) === 'boleta'
+            || $taxProfile['mode'] === 'retencion';
 
         $st = $pdo->prepare('SELECT * FROM tenant_settings WHERE tenant_id = ?');
         $st->execute([$tenantId]);

@@ -53,6 +53,18 @@ jQuery(function ($) {
   }
 
   var OC_TAX_PERCENT = 19;
+  var OC_BOLETA_RETENCION_PERCENT = parseFloat(cfg.boletaRetencionPercent);
+  if (isNaN(OC_BOLETA_RETENCION_PERCENT)) {
+    OC_BOLETA_RETENCION_PERCENT = 12.25;
+  }
+
+  function selectedTaxDocType() {
+    var $sel = $('#tax_doc_type');
+    if (!$sel.length) {
+      return '';
+    }
+    return String($sel.val() || '').trim().toLowerCase();
+  }
 
   function money0(n) {
     if (isNaN(n)) {
@@ -223,7 +235,16 @@ jQuery(function ($) {
 
   function refreshDocTotals() {
     var sub = getOcLineSubtotal();
-    var prof = ocDetectTaxProfile();
+    var docType = selectedTaxDocType();
+    var prof;
+    // Perfil elegido manda; sin eleccion (historica) → inferencia legado.
+    if (docType === 'factura') {
+      prof = { mode: 'iva', rate: OC_TAX_PERCENT };
+    } else if (docType === 'boleta') {
+      prof = { mode: 'retencion', rate: OC_BOLETA_RETENCION_PERCENT };
+    } else {
+      prof = ocDetectTaxProfile();
+    }
     var taxAmt;
     var total;
     var labelCell;
@@ -754,9 +775,20 @@ jQuery(function ($) {
     }
   });
 
+  $('#tax_doc_type').on('change', function () {
+    refreshDocTotals();
+  });
+
   $('#oc-form').on('submit', function (e) {
     rebuildLineHiddenInputs();
     $('.oc-cta-select').prop('disabled', false);
+    var taxRequired = !!cfg.taxDocTypeRequired || !cfg.purchaseOrderId;
+    if (taxRequired && !selectedTaxDocType()) {
+      e.preventDefault();
+      alert('Debe elegir el tipo de documento (Factura o Boleta de Honorarios).');
+      $('#tax_doc_type').focus();
+      return false;
+    }
     if (!$('#nro_cta').val()) {
       e.preventDefault();
       alert('Seleccione al menos la primera cuenta (' + labelNCta + ').');

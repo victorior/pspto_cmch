@@ -16,6 +16,7 @@ final class OcService
 
     /**
      * @param list<array{budget_detail_id: int, amount: float, req_number?: string}> $allocations
+     * @param array{tax_doc_type: string, tax_mode: string, tax_percent: float}|null $taxProfile
      */
     public static function createPurchaseOrder(
         PDO $pdo,
@@ -33,6 +34,7 @@ final class OcService
         int $accountCode2 = 0,
         int $accountCode3 = 0,
         int $accountCode4 = 0,
+        ?array $taxProfile = null,
     ): int {
         $pdo->beginTransaction();
         try {
@@ -43,12 +45,23 @@ final class OcService
             }
             $total = round($total, 4);
 
+            $taxDocType = $taxProfile !== null ? (string) ($taxProfile['tax_doc_type'] ?? '') : null;
+            $taxMode = $taxProfile !== null ? (string) ($taxProfile['tax_mode'] ?? '') : null;
+            $taxPercent = $taxProfile !== null ? (float) ($taxProfile['tax_percent'] ?? 0) : null;
+            if ($taxDocType === '') {
+                $taxDocType = null;
+            }
+            if ($taxMode === '') {
+                $taxMode = null;
+            }
+
             $pdo->prepare(
                 'INSERT INTO purchase_orders (
                     tenant_id, folio_year, numero_oc, ordered_at, supplier_id,
                     seller_ref, payment_terms, total_amount, note,
-                    account_code_1, account_code_2, account_code_3, account_code_4, created_by
-                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                    account_code_1, account_code_2, account_code_3, account_code_4, created_by,
+                    tax_doc_type, tax_mode, tax_percent
+                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             )->execute([
                 $tenantId,
                 $folioYear,
@@ -64,6 +77,9 @@ final class OcService
                 $accountCode3,
                 $accountCode4,
                 $userId,
+                $taxDocType,
+                $taxMode,
+                $taxPercent,
             ]);
             $poId = (int) $pdo->lastInsertId();
 
@@ -312,6 +328,8 @@ final class OcService
     /**
      * @param list<array{product_code: string, product_name: string, qty: float, unit_price: float}> $lines
      * @param list<array{budget_detail_id: int, amount: float, req_number?: string}> $allocations
+     * @param array{tax_doc_type: string, tax_mode: string, tax_percent: float}|null $taxProfile
+     *        null = no cambiar columnas tax_*; array = persistir perfil base
      */
     public static function updatePurchaseOrder(
         PDO $pdo,
@@ -328,6 +346,7 @@ final class OcService
         int $accountCode2 = 0,
         int $accountCode3 = 0,
         int $accountCode4 = 0,
+        ?array $taxProfile = null,
     ): void {
         $st = $pdo->prepare('SELECT id, status, folio_year FROM purchase_orders WHERE id = ? AND tenant_id = ?');
         $st->execute([$purchaseOrderId, $tenantId]);
@@ -353,24 +372,49 @@ final class OcService
 
         $pdo->beginTransaction();
         try {
-            $pdo->prepare(
-                'UPDATE purchase_orders SET ordered_at = ?, supplier_id = ?, seller_ref = ?, payment_terms = ?,
-                    total_amount = ?, note = ?, account_code_1 = ?, account_code_2 = ?, account_code_3 = ?, account_code_4 = ?
-                 WHERE id = ? AND tenant_id = ?'
-            )->execute([
-                $orderedAt,
-                $supplierId,
-                mb_substr($sellerRef, 0, 64),
-                mb_substr($paymentTerms, 0, 32),
-                $total,
-                $note,
-                $accountCode1,
-                $accountCode2,
-                $accountCode3,
-                $accountCode4,
-                $purchaseOrderId,
-                $tenantId,
-            ]);
+            if ($taxProfile !== null) {
+                $pdo->prepare(
+                    'UPDATE purchase_orders SET ordered_at = ?, supplier_id = ?, seller_ref = ?, payment_terms = ?,
+                        total_amount = ?, note = ?, account_code_1 = ?, account_code_2 = ?, account_code_3 = ?, account_code_4 = ?,
+                        tax_doc_type = ?, tax_mode = ?, tax_percent = ?
+                     WHERE id = ? AND tenant_id = ?'
+                )->execute([
+                    $orderedAt,
+                    $supplierId,
+                    mb_substr($sellerRef, 0, 64),
+                    mb_substr($paymentTerms, 0, 32),
+                    $total,
+                    $note,
+                    $accountCode1,
+                    $accountCode2,
+                    $accountCode3,
+                    $accountCode4,
+                    (string) ($taxProfile['tax_doc_type'] ?? ''),
+                    (string) ($taxProfile['tax_mode'] ?? ''),
+                    (float) ($taxProfile['tax_percent'] ?? 0),
+                    $purchaseOrderId,
+                    $tenantId,
+                ]);
+            } else {
+                $pdo->prepare(
+                    'UPDATE purchase_orders SET ordered_at = ?, supplier_id = ?, seller_ref = ?, payment_terms = ?,
+                        total_amount = ?, note = ?, account_code_1 = ?, account_code_2 = ?, account_code_3 = ?, account_code_4 = ?
+                     WHERE id = ? AND tenant_id = ?'
+                )->execute([
+                    $orderedAt,
+                    $supplierId,
+                    mb_substr($sellerRef, 0, 64),
+                    mb_substr($paymentTerms, 0, 32),
+                    $total,
+                    $note,
+                    $accountCode1,
+                    $accountCode2,
+                    $accountCode3,
+                    $accountCode4,
+                    $purchaseOrderId,
+                    $tenantId,
+                ]);
+            }
 
             $pdo->prepare('DELETE FROM po_lines WHERE purchase_order_id = ? AND tenant_id = ?')
                 ->execute([$purchaseOrderId, $tenantId]);

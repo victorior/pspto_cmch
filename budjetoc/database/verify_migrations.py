@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verifica columnas e indices clave de migraciones 001-014."""
+"""Verifica columnas e indices clave de migraciones 001-016."""
 from __future__ import annotations
 
 import re
@@ -16,13 +16,23 @@ def db_cfg() -> dict:
         m = re.search(rf"'{key}'\s*=>\s*'([^']*)'", text)
         return m.group(1) if m else default
 
-    return {
+    def grab_int(key: str, default: int | None = None) -> int | None:
+        m = re.search(rf"'{key}'\s*=>\s*(\d+)", text)
+        if m:
+            return int(m.group(1))
+        return default
+
+    cfg = {
         "host": grab("host", "127.0.0.1"),
         "user": grab("user", "root"),
         "password": grab("pass", ""),
         "database": grab("name", "budjetoc"),
         "charset": "utf8mb4",
     }
+    port = grab_int("port")
+    if port is not None:
+        cfg["port"] = port
+    return cfg
 
 
 def main() -> int:
@@ -44,6 +54,9 @@ def main() -> int:
         ("idx_po_tenant_year_status_num", "SHOW INDEX FROM purchase_orders WHERE Key_name = 'idx_po_tenant_year_status_num'"),
         ("idx_tenant_detail", "SHOW INDEX FROM po_budget_allocations WHERE Key_name = 'idx_tenant_detail'"),
         ("purchase_orders.voided_at", "SHOW COLUMNS FROM purchase_orders LIKE 'voided_at'"),
+        ("purchase_orders.tax_doc_type", "SHOW COLUMNS FROM purchase_orders LIKE 'tax_doc_type'"),
+        ("purchase_orders.tax_mode", "SHOW COLUMNS FROM purchase_orders LIKE 'tax_mode'"),
+        ("purchase_orders.tax_percent", "SHOW COLUMNS FROM purchase_orders LIKE 'tax_percent'"),
         ("account_codes.account_id", "SHOW COLUMNS FROM account_codes LIKE 'account_id'"),
         ("users.google_id", "SHOW COLUMNS FROM users LIKE 'google_id'"),
     ]
