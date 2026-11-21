@@ -6,7 +6,7 @@ declare(strict_types=1);
  * CLI — delete multi-tenant de catálogo org (historia 3 / CAP-1 delete + CAP-2).
  * Uso: php database/test_catalog_org_delete.php
  *
- * Cubre matriz I/O: OK, con headers, desalineación, receive-only,
+ * Cubre matriz I/O: OK, con headers, desalineación,
  * CSRF inválido, no–super-admin, HTTP success SA+CSRF (CC/div/coord).
  */
 
@@ -373,26 +373,6 @@ assertTrue('CC vacío: menciona requerido', isset($r['error']) && str_contains($
 $r = CatalogService::deleteDepartmentAcrossTenants($pdo, '   ', 'estandar');
 assertTrue('Div vacío: ok=false', $r['ok'] === false);
 assertTrue('Div vacío: menciona requerido', isset($r['error']) && str_contains($r['error'], 'requerido'));
-
-// --- Receive-only ---
-$receiveName = BudgetActivityRules::catalogReceiveCostCenterNames()[0] ?? 'Docencia';
-$r = CatalogService::deleteCostCenterAcrossTenants($pdo, $receiveName);
-assertTrue('CC receive-only: ok=false', $r['ok'] === false);
-assertTrue(
-    'CC receive-only: cita dependencia',
-    isset($r['error']) && (stripos($r['error'], 'receive-only') !== false || stripos($r['error'], 'catalogReceive') !== false)
-);
-assertTrue(
-    'receive-only helper',
-    BudgetActivityRules::isReceiveOnlyOrCatalogReceiveName($receiveName)
-);
-
-$r = CatalogService::deleteDepartmentAcrossTenants($pdo, $receiveName, 'coordinacion');
-assertTrue('Coord receive-only: ok=false', $r['ok'] === false);
-assertTrue(
-    'Coord receive-only: cita dependencia',
-    isset($r['error']) && (stripos($r['error'], 'receive-only') !== false || stripos($r['error'], 'catalogReceive') !== false)
-);
 
 // --- Desalineación ---
 $pdo->prepare('INSERT INTO cost_centers (tenant_id, name) VALUES (?, ?)')->execute([$workTenant, $misalignCc]);

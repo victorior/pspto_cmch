@@ -81,16 +81,9 @@ $st = $pdo->prepare("SELECT id, name FROM departments WHERE tenant_id = ? AND ty
 $st->execute([$tenantId]);
 $division = $st->fetch(PDO::FETCH_ASSOC);
 
-$st = $pdo->prepare("SELECT id, name FROM departments WHERE tenant_id = ? AND type = 'coordinacion' ORDER BY id ASC LIMIT 5");
+$st = $pdo->prepare("SELECT id, name FROM departments WHERE tenant_id = ? AND type = 'coordinacion' ORDER BY id ASC LIMIT 1");
 $st->execute([$tenantId]);
-$coords = $st->fetchAll(PDO::FETCH_ASSOC);
-$coord = null;
-foreach ($coords as $c) {
-    if (BudgetActivityRules::creatorCoordinationMayCreateBudget($pdo, $tenantId, (int) $c['id'])) {
-        $coord = $c;
-        break;
-    }
-}
+$coord = $st->fetch(PDO::FETCH_ASSOC) ?: null;
 
 $st = $pdo->prepare('SELECT id, name FROM cost_centers WHERE tenant_id = ? ORDER BY id ASC LIMIT 1');
 $st->execute([$tenantId]);

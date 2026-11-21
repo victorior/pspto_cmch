@@ -200,7 +200,6 @@ if ($selectedDepartmentId !== null && $selectedDepartmentId > 0) {
     $nextYearEditEnabled = UserPermissions::departmentEditPolicy($pdo, $tid, $selectedDepartmentId, $yearNext) === 1;
 }
 
-$dashboardReceiveOnlyNotice = isset($_GET['no_new_activity']) && $_GET['no_new_activity'] === 'receive_only';
 $dashboardNuevaActividadUrl = null;
 $dashboardNuevaActividadBlockedReason = null;
 if ($selectedDepartmentId !== null && $selectedDepartmentId > 0) {
@@ -211,8 +210,6 @@ if ($selectedDepartmentId !== null && $selectedDepartmentId > 0) {
     }
     if (!$canAccess) {
         $dashboardNuevaActividadBlockedReason = 'No tiene permiso para crear actividades en la division o centro seleccionado.';
-    } elseif (BudgetActivityRules::isCoordinationReceiveOnlyDepartment($selectedDeptForCreate)) {
-        $dashboardNuevaActividadBlockedReason = 'Este Centro de Costo solo recibe imputaciones; no puede crear actividades de presupuesto.';
     } elseif (!UserPermissions::canEditActivitiesForDepartment($pdo, $uid, $tid, $selectedDepartmentId, $budgetYear)) {
         $dashboardNuevaActividadBlockedReason = 'Nueva actividad no esta habilitada porque el ' . t_es('ano') . '/departamento seleccionado esta en solo lectura.';
     } else {
@@ -258,7 +255,7 @@ if ($selectedDepartmentId !== null && $selectedDepartmentId > 0) {
     if ($selectedDeptRow !== null) {
         $selectedDepartmentName = (string) ($selectedDeptRow['name'] ?? '');
         $selectedDepartmentKind = ($selectedDeptRow['type'] ?? '') === 'coordinacion'
-            ? 'Centro de costo'
+            ? 'Coordinacion'
             : 'Division';
     }
 }

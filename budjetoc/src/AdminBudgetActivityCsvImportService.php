@@ -637,14 +637,6 @@ final class AdminBudgetActivityCsvImportService
         }
         $creatorDeptId = (int) $creatorEntry['id'];
 
-        if ($creatorTypeRaw === 'coordinacion'
-            && !BudgetActivityRules::creatorCoordinationMayCreateBudget($pdo, $tenantId, $creatorDeptId)
-        ) {
-            $push(BudgetActivityRules::errorMessage('coord_receive_only'));
-
-            return ['errors' => $errors, 'payload' => null];
-        }
-
         $divisionName = trim((string) ($lead['division_name'] ?? ''));
         $ccName = trim((string) ($lead['cost_center_name'] ?? ''));
         $header = [

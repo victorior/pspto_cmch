@@ -26,11 +26,12 @@ declare(strict_types=1);
  * - department_id   → coordinacion creadora o sub-area estandar bajo la division.
  * - cost_center_id  → cost_centers.id (solo actividades cargadas por division).
  *
- * Centros “solo recepcion” (columna 3 del dashboard)
- * --------------------------------------------------
- * Nombres en catalogReceiveCostCenterNames() existen en cost_centers y, en paralelo, como
- * departments type coordinacion (p. ej. Administracioncc ≠ division Administracion).
- * Esas coordinaciones no crean actividades; solo reciben imputaciones OC.
+ * Dashboard (selector)
+ * --------------------
+ * - Columna Divisiones = departments type estandar.
+ * - Columna Coordinaciones/C.C. = departments type coordinacion (todas; sin lista hardcodeada).
+ * - Columna Centros de Costo = filas de cost_centers (catalogo contable; no son departments).
+ * No existe regla receive-only: cualquier coordinacion con permiso puede crear actividades.
  *
  * Creacion de actividades
  * -----------------------
@@ -115,145 +116,6 @@ final class BudgetActivityRules
         self::$estadioDivisionMemo[$tenantId] = $found;
 
         return $found;
-    }
-
-    public static function normalizeCoordinationNamePolicy(string $name): string
-    {
-        $n = mb_strtolower(trim($name), 'UTF-8');
-        $n = (string) preg_replace('/\s+/u', ' ', $n);
-        $search = [
-            "\u{00e1}", "\u{00e9}", "\u{00ed}", "\u{00f3}", "\u{00fa}", "\u{00fc}", "\u{00f1}",
-        ];
-        $replace = ['a', 'e', 'i', 'o', 'u', 'u', 'n'];
-
-        return str_replace($search, $replace, $n);
-    }
-
-    private static function receiveOnlyNameKey(string $name): string
-    {
-        return str_replace(' ', '', self::normalizeCoordinationNamePolicy($name));
-    }
-
-    /** Centros de costo de catalogo: solo reciben imputaciones, no crean actividades. */
-    /** @return list<string> */
-    public static function catalogReceiveCostCenterNames(): array
-    {
-        return [
-            'Docencia',
-            'Administracióncc',
-            'Direccióncc',
-            'Laboratorios',
-            'Pre universitario',
-        ];
-    }
-
-    /** @return array<string, true> */
-    private static function catalogReceiveCostCenterNameKeySet(): array
-    {
-        static $set = null;
-        if ($set !== null) {
-            return $set;
-        }
-        $set = [];
-        foreach (self::catalogReceiveCostCenterNames() as $label) {
-            $k = self::receiveOnlyNameKey($label);
-            if ($k !== '') {
-                $set[$k] = true;
-            }
-        }
-
-        return $set;
-    }
-
-    public static function isCatalogReceiveCostCenterName(string $name): bool
-    {
-        $key = self::receiveOnlyNameKey($name);
-
-        return $key !== '' && isset(self::catalogReceiveCostCenterNameKeySet()[$key]);
-    }
-
-    /**
-     * Gate rename de catálogo org: nombre en budget_coord_receive_only_names o catalogReceive.
-     * Match case/trim-insensitive (vía receiveOnlyNameKey).
-     */
-    public static function isReceiveOnlyOrCatalogReceiveName(string $name): bool
-    {
-        $key = self::receiveOnlyNameKey($name);
-
-        return $key !== '' && isset(self::receiveOnlyBlockedNameKeySet()[$key]);
-    }
-
-    /**
-     * @param list<array{id: int, name: string, type: string, parent_id: int|null}> $departments
-     * @return list<array{id: int, name: string, type: string, parent_id: int|null}>
-     */
-    public static function sortCatalogReceiveDepartments(array $departments): array
-    {
-        $order = [];
-        foreach (self::catalogReceiveCostCenterNames() as $i => $label) {
-            $order[self::receiveOnlyNameKey($label)] = $i;
-        }
-        usort(
-            $departments,
-            static function (array $a, array $b) use ($order): int {
-                $ka = self::receiveOnlyNameKey((string) ($a['name'] ?? ''));
-                $kb = self::receiveOnlyNameKey((string) ($b['name'] ?? ''));
-                $ia = $order[$ka] ?? 999;
-                $ib = $order[$kb] ?? 999;
-                if ($ia !== $ib) {
-                    return $ia <=> $ib;
-                }
-
-                return strcmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? ''));
-            }
-        );
-
-        return $departments;
-    }
-
-    /** @return array<string, true> */
-    private static function receiveOnlyBlockedNameKeySet(): array
-    {
-        static $set = null;
-        if ($set !== null) {
-            return $set;
-        }
-        global $CONFIG;
-        $raw = is_array($CONFIG ?? null)
-            ? (string) ($CONFIG['budget_coord_receive_only_names'] ?? 'Docencia,Direccioncc,Administracioncc,Laboratorios,Pre universitario')
-            : 'Docencia,Direccioncc,Administracioncc,Laboratorios,Pre universitario';
-        $set = [];
-        foreach (explode(',', $raw) as $p) {
-            $k = self::receiveOnlyNameKey(trim($p));
-            if ($k !== '') {
-                $set[$k] = true;
-            }
-        }
-        foreach (self::catalogReceiveCostCenterNameKeySet() as $k => $_) {
-            $set[$k] = true;
-        }
-
-        return $set;
-    }
-
-    /** @param array{id: int, name: string, type: string, parent_id: int|null}|null $departmentRow */
-    public static function isCoordinationReceiveOnlyDepartment(?array $departmentRow): bool
-    {
-        if ($departmentRow === null || ($departmentRow['type'] ?? '') !== 'coordinacion') {
-            return false;
-        }
-        $key = self::receiveOnlyNameKey((string) ($departmentRow['name'] ?? ''));
-
-        return $key !== '' && isset(self::receiveOnlyBlockedNameKeySet()[$key]);
-    }
-
-    public static function creatorCoordinationMayCreateBudget(PDO $pdo, int $tenantId, ?int $creatorDeptId): bool
-    {
-        if ($creatorDeptId === null || $creatorDeptId <= 0) {
-            return true;
-        }
-
-        return !self::isCoordinationReceiveOnlyDepartment(DepartmentCatalog::getById($pdo, $creatorDeptId, $tenantId));
     }
 
     /**
@@ -354,7 +216,6 @@ final class BudgetActivityRules
             'division_target_required' => 'Debe seleccionar la division a la que se imputa la actividad.',
             'invalid_target_division' => 'La division destino no es valida.',
             'gestion_estadio_only_estadio' => 'Gestion Estadio solo puede imputar a la division Estadio.',
-            'coord_receive_only' => 'Esta coordinacion solo recibe imputaciones; no puede crear actividades.',
             'unknown_creator_type' => 'Tipo de departamento creador no soportado.',
             default => 'No se pudo validar la cabecera del presupuesto.',
         };
