@@ -31,7 +31,7 @@ function budjetoc_load_app_modules(): void
     if ($needEditPolicy) {
         require_once __DIR__ . '/EditPolicyService.php';
     }
-    if ($isAdmin) {
+    if ($isAdmin || !$known) {
         require_once __DIR__ . '/AdminUserCsvImportService.php';
         require_once __DIR__ . '/AdminBudgetActivityCsvImportService.php';
     }

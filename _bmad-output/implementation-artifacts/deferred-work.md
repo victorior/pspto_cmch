@@ -37,3 +37,7 @@
 - source_spec: `_bmad-output/specs/spec-carga-masiva-actividades-presupuesto/stories/1-pantalla-admin-plantilla-csv.md`
   summary: Sin test automatico de alineacion templateHeaders vs plantilla-import.md
   evidence: Contrato documentado; drift se detectara al implementar validacion Story 2
+
+- source_spec: `_bmad-output/specs/spec-carga-masiva-actividades-presupuesto/stories/2-validacion-previa-compacta.md`
+  summary: Sin smoke HTTP del POST validate_csv (CSRF, flash, reporte UI) en budget_activities_import.php
+  evidence: Repo sin harness de sesion admin; smoke CLI cubre servicio; UI queda a chequeo manual (mismo patron que import usuarios)
