@@ -152,9 +152,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($lines === []) {
             throw new RuntimeException('Agregue al menos una linea de producto.');
         }
-        if ($allocs === []) {
-            throw new RuntimeException('Debe imputar al menos una linea de presupuesto (actividad ' . $year . ').');
-        }
         $nroCta1 = (int) ($_POST['nro_cta'] ?? 0);
         if ($nroCta1 <= 0) {
             throw new RuntimeException('Seleccione al menos la primera cuenta (' . t_es('n_cta') . ').');

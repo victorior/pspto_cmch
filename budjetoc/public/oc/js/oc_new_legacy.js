@@ -365,7 +365,7 @@ jQuery(function ($) {
       $hint = $('#alloc-hint');
     }
     if (al <= 0) {
-      $hint.text('Impute actividades desde Buscar Actividades.').css('color', '#666');
+      $hint.text('Opcional: impute actividades desde Buscar Actividades.').css('color', '#666');
       return;
     }
     if (!hasLines) {
@@ -932,11 +932,6 @@ jQuery(function ($) {
     if ($('#oc-lines-hidden-store input').length === 0) {
       e.preventDefault();
       alert('No se pudieron enviar las lineas de producto. Vuelva a agregar el producto.');
-      return false;
-    }
-    if ($('#resultadosPspto .budget-pick').length === 0) {
-      e.preventDefault();
-      alert('Debe imputar al menos una actividad de presupuesto.');
       return false;
     }
     return true;

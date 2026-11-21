@@ -105,9 +105,6 @@ final class OcService
                  VALUES (?, ?, ?, ?, ?)'
             );
             $normalized = self::normalizeAllocations($allocations);
-            if ($normalized === []) {
-                throw new RuntimeException('Debe imputar al menos una linea de presupuesto con monto mayor a cero.');
-            }
             BudgetService::assertOcAllocationsWithinSaldo($pdo, $tenantId, $normalized);
 
             foreach ($normalized as $a) {
@@ -440,9 +437,6 @@ final class OcService
         $total = round($total, 4);
 
         $normalized = self::normalizeAllocations($allocations);
-        if ($normalized === []) {
-            throw new RuntimeException('Debe imputar al menos una linea de presupuesto con monto mayor a cero.');
-        }
         BudgetService::assertOcAllocationsWithinSaldo($pdo, $tenantId, $normalized, $purchaseOrderId);
 
         $pdo->beginTransaction();
