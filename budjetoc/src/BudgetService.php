@@ -598,6 +598,53 @@ final class BudgetService
     }
 
     /**
+     * Elimina cabecera de actividad (detalles CASCADE). Bloquea si hay cualquier
+     * fila en po_budget_allocations (cualquier status de OC; FK ON DELETE RESTRICT).
+     *
+     * @throws InvalidArgumentException si no existe en el tenant
+     * @throws RuntimeException si hay imputacion OC
+     */
+    public static function deleteActivity(PDO $pdo, int $tenantId, int $headerId): void
+    {
+        $pdo->beginTransaction();
+        try {
+            $stLock = $pdo->prepare(
+                'SELECT id FROM budget_headers WHERE id = ? AND tenant_id = ? FOR UPDATE'
+            );
+            $stLock->execute([$headerId, $tenantId]);
+            if ($stLock->fetchColumn() === false) {
+                throw new InvalidArgumentException('Activity not found');
+            }
+
+            $stAlloc = $pdo->prepare(
+                'SELECT 1
+                 FROM po_budget_allocations pba
+                 INNER JOIN budget_details bd ON bd.id = pba.budget_detail_id
+                 WHERE bd.budget_header_id = ?
+                 LIMIT 1'
+            );
+            $stAlloc->execute([$headerId]);
+            if ($stAlloc->fetchColumn() !== false) {
+                throw new RuntimeException(
+                    'No se puede eliminar la actividad porque tiene imputaciones de orden de compra.'
+                );
+            }
+
+            $st = $pdo->prepare('DELETE FROM budget_headers WHERE id = ? AND tenant_id = ?');
+            $st->execute([$headerId, $tenantId]);
+            if ($st->rowCount() < 1) {
+                throw new InvalidArgumentException('Activity not found');
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
      * Lineas de presupuesto para modal OC (mismo tenant).
      *
      * @return list<array<string, mixed>>

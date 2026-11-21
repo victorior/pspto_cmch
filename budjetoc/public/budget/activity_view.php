@@ -62,10 +62,21 @@ $total = BudgetService::headerTotal($pdo, $hid);
 $util = BudgetService::utilizedSumsByHeaderIds($pdo, [$hid])[$hid] ?? 0.0;
 $year = budget_year_from_activity_number((string) $h['activity_number']);
 $canEdit = UserPermissions::canEditActivityHeader($pdo, (int) Auth::userId(), $tid, $h, $year);
+$canDelete = UserPermissions::canDeleteActivityHeader($pdo, (int) Auth::userId(), $tid, $h, $year)
+    && $util <= 0.005;
 $saveOk = isset($_GET['ok']) && $_GET['ok'] === '1';
-$listReturnHref = budget_list_return_href($_GET['return'] ?? null);
-$returnSuffix = budget_return_query_suffix($_GET['return'] ?? null);
-$listContext = budget_list_context_from_return($pdo, $tid, $_GET['return'] ?? null);
+$deleteError = null;
+if (isset($_GET['error'])) {
+    if ($_GET['error'] === 'oc') {
+        $deleteError = 'No se puede eliminar la actividad porque tiene imputaciones de orden de compra.';
+    } elseif ($_GET['error'] === 'delete') {
+        $deleteError = 'No se pudo eliminar la actividad.';
+    }
+}
+$returnRaw = trim((string) ($_GET['return'] ?? ''));
+$listReturnHref = budget_list_return_href($returnRaw !== '' ? $returnRaw : null);
+$returnSuffix = budget_return_query_suffix($returnRaw !== '' ? $returnRaw : null);
+$listContext = budget_list_context_from_return($pdo, $tid, $returnRaw !== '' ? $returnRaw : null);
 $activityDivisionName = trim((string) ($h['division_name'] ?? ''));
 $activityCcCoordLabel = budget_ccosto_coordinacion_label($h);
 
@@ -84,6 +95,7 @@ $layoutNav = [
 require dirname(__DIR__) . '/inc/layout_top.php';
 ?>
 <?php if ($saveOk): ?><p class="alert alert-ok">Cambios guardados.</p><?php endif; ?>
+<?php if ($deleteError !== null): ?><p class="alert alert-err"><?= h($deleteError) ?></p><?php endif; ?>
 <?php if ($listContext !== null): ?>
 <div class="dash-activity-top">
   <p class="dash-activity-top__line">
@@ -105,9 +117,22 @@ require dirname(__DIR__) . '/inc/layout_top.php';
 </div>
 <?php endif; ?>
 <div class="card">
-  <?php if ($canEdit): ?>
-  <p style="margin:0 0 0.75rem;">
+  <?php if ($canEdit || $canDelete): ?>
+  <p style="margin:0 0 0.75rem;display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;">
+    <?php if ($canEdit): ?>
     <a href="activity_edit.php?id=<?= $hid ?><?= h($returnSuffix) ?>" class="btn btn-primary btn-sm">Editar actividad</a>
+    <?php endif; ?>
+    <?php if ($canDelete): ?>
+    <form method="post" action="activity_delete.php" style="display:inline;margin:0;"
+          onsubmit="return confirm('Eliminar esta actividad? Esta accion no se puede deshacer.');">
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="id" value="<?= $hid ?>">
+      <?php if ($returnRaw !== ''): ?>
+      <input type="hidden" name="return" value="<?= h($returnRaw) ?>">
+      <?php endif; ?>
+      <button type="submit" class="btn btn-sm">Eliminar</button>
+    </form>
+    <?php endif; ?>
   </p>
   <?php endif; ?>
   <div style="overflow-x:auto;">

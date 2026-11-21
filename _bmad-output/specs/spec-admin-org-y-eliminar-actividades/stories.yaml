@@ -1,0 +1,26 @@
+- id: "1"
+  title: Eliminar actividades de Presupuesto
+  description: >-
+    Encargado elimina actividades propias con permiso de edición del año (CAP-3);
+    super admin elimina cualquier actividad del tenant (CAP-4); bloqueo si hay imputaciones OC.
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: ""
+
+- id: "2"
+  title: Editar catálogo org con paridad multi-tenant
+  description: >-
+    Super admin edita/renombra centros de costo, divisiones y coordinaciones (CAP-1)
+    manteniendo las mismas atribuciones alineadas en todos los tenants.
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: ""
+
+- id: "3"
+  title: Eliminar catálogo org con guard de actividades
+  description: >-
+    Super admin elimina CC/divisiones/coordinaciones (CAP-1) solo si no hay budget_headers
+    asociadas (CAP-2); el delete válido se refleja en todos los tenants.
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: ""

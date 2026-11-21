@@ -325,6 +325,98 @@ final class UserPermissions
         return self::canEditActivitiesForDepartment($pdo, $userId, $tenantId, $deptId, $year);
     }
 
+    /**
+     * Unidad dueña de la actividad (propia): created_by, o department_id legacy.
+     * No usa division_id (a diferencia de resolvePolicyDepartmentId).
+     *
+     * @param array{created_by?: int|null, department_id?: int|null} $headerRow
+     */
+    public static function resolveOwnershipDepartmentId(array $headerRow): int
+    {
+        $createdBy = (int) ($headerRow['created_by'] ?? 0);
+        if ($createdBy > 0) {
+            return $createdBy;
+        }
+
+        return (int) ($headerRow['department_id'] ?? 0);
+    }
+
+    /**
+     * Eliminar actividad: SA / tenant_admin sin ownership ni gate de año;
+     * encargado solo propia + permiso de edición del año (no usar canView).
+     *
+     * @param array{created_by?: int|null, department_id?: int|null, division_id?: int|null, activity_number?: string} $headerRow
+     */
+    public static function canDeleteActivityHeader(
+        PDO $pdo,
+        int $userId,
+        int $tenantId,
+        array $headerRow,
+        ?int $year = null,
+    ): bool {
+        if (self::isBudgetTenantAdmin($pdo, $userId, $tenantId)) {
+            return true;
+        }
+        $ownerDeptId = self::resolveOwnershipDepartmentId($headerRow);
+        if ($ownerDeptId <= 0) {
+            return false;
+        }
+        if (!self::canUseDepartment($pdo, $userId, $tenantId, $ownerDeptId)) {
+            return false;
+        }
+        if ($year === null) {
+            $year = budget_year_from_activity_number((string) ($headerRow['activity_number'] ?? ''));
+        }
+
+        return self::departmentEditPolicy($pdo, $tenantId, $ownerDeptId, $year) === 1;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $headerRows
+     * @return array<int, bool> header_id => puede eliminar (permiso; OC se chequea aparte en UI/servicio)
+     */
+    public static function canDeleteFlagsForHeaders(
+        PDO $pdo,
+        int $userId,
+        int $tenantId,
+        array $headerRows,
+        int $year,
+    ): array {
+        if ($headerRows === []) {
+            return [];
+        }
+        if (self::isBudgetTenantAdmin($pdo, $userId, $tenantId)) {
+            $out = [];
+            foreach ($headerRows as $row) {
+                $out[(int) $row['id']] = true;
+            }
+
+            return $out;
+        }
+        $allowed = self::allowedDepartmentIds($pdo, $userId, $tenantId);
+        $ownerIds = [];
+        foreach ($headerRows as $row) {
+            $ownerIds[] = self::resolveOwnershipDepartmentId($row);
+        }
+        $policies = self::departmentEditPoliciesBatch($pdo, $tenantId, $ownerIds, $year);
+        $out = [];
+        foreach ($headerRows as $row) {
+            $hid = (int) $row['id'];
+            $ownerDeptId = self::resolveOwnershipDepartmentId($row);
+            if ($ownerDeptId <= 0) {
+                $out[$hid] = false;
+                continue;
+            }
+            if ($allowed !== null && !in_array($ownerDeptId, $allowed, true)) {
+                $out[$hid] = false;
+                continue;
+            }
+            $out[$hid] = ($policies[$ownerDeptId] ?? 0) === 1;
+        }
+
+        return $out;
+    }
+
     public static function departmentEditPolicy(PDO $pdo, int $tenantId, int $departmentId, ?int $year = null): int
     {
         return self::departmentEditPoliciesBatch($pdo, $tenantId, [$departmentId], $year)[$departmentId] ?? 0;

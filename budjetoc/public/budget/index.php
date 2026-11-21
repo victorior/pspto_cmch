@@ -277,6 +277,12 @@ if ($isAdmin) {
 $listEditFlags = ($dashboardShowActivities && $list !== [])
     ? UserPermissions::canEditFlagsForHeaders($pdo, $uid, $tid, $list, $budgetYear)
     : [];
+$listDeleteFlags = ($dashboardShowActivities && $list !== [])
+    ? UserPermissions::canDeleteFlagsForHeaders($pdo, $uid, $tid, $list, $budgetYear)
+    : [];
 require dirname(__DIR__) . '/inc/layout_top.php';
+if (isset($_GET['deleted']) && $_GET['deleted'] === '1') {
+    echo '<p class="alert alert-ok">Actividad eliminada.</p>';
+}
 require __DIR__ . '/inc/dashboard_view.php';
 require dirname(__DIR__) . '/inc/layout_bottom.php';
