@@ -1,0 +1,3 @@
+87 "      $hint.text('Total imputado: ' + money0(al) + ' \\u2014 debe igualar OC ' + money0(poTotal)).css('color', '#c00');"
+216 "        '<strong>' + esc(act) + '</strong> \\u2014 ' + esc(acct) + '<br>' +"
+221 '        \'<div class="col-sm-4"><label>N\\u00BA req</label>\' +'

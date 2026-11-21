@@ -1,0 +1,149 @@
+BudgetOC (budjetoc) — instalacion en cPanel / XAMPP
+
+====================================================
+
+
+
+Requisitos: PHP 8.x, MySQL/MariaDB, extensiones pdo_mysql y mbstring.
+
+Python 3 + pymysql para scripts de verificacion: pip install pymysql
+
+
+
+1. Cree la base MySQL con nombre exacto: budjetoc (obligatorio en config/config.php db.name).
+
+
+
+2. Copie config/config.example.php a config/config.php y ajuste:
+
+   - db.host, db.name, db.user, db.pass
+
+   - base_url (ej. https://tudominio.cl/budjetoc/public)
+
+
+
+3. Instalacion nueva (CLI):
+
+   php database/install.php
+
+
+
+   Crea tablas + superadmin por defecto:
+
+   Email: admin@local.test
+
+   Clave: Admin1234!  (cambiar en produccion)
+
+
+
+4. DocumentRoot del hosting:
+
+   .../budjetoc/public
+
+   (No apunte a la raiz del repo. config/, src/ y database/ tienen .htaccess Deny.)
+
+
+
+4b. Verificacion tras instalar o actualizar:
+
+   py database/verify_migrations.py
+
+   py database/run_verification_tests.py
+
+
+
+4c. Actualizar BD existente (upgrade):
+
+   py database/apply_all_migrations.py
+
+   py database/apply_migration_013.py   (solo si renombra Administracioncc)
+
+   php database/backfill_voided_at.php  (OC anuladas sin fecha)
+
+
+
+4d. Produccion — config.php:
+
+   env = 'production'
+
+   app_secret = clave fuerte (>= 24 caracteres)
+
+   schema_checks = false
+
+   google_oauth.enabled = true + client_id + client_secret
+
+   password_login_enabled = false
+
+   public_url = https://tudominio.cl/public  (opcional; si vacio usa el host de la peticion)
+
+   Sin legacy_sql_dump / legacy_user_import_password en servidor
+
+   MySQL: usuario dedicado, no root sin clave
+
+
+
+4e. Google OAuth (login centralizado):
+
+   1) Google Cloud Console > APIs & Services > Credentials > OAuth 2.0 Client ID (Web)
+
+   2) Authorized redirect URIs (local XAMPP):
+
+      http://localhost/budjetoc/public/auth/google/callback.php
+
+      (Si usa 127.0.0.1, agregue tambien:
+      http://127.0.0.1/budjetoc/public/auth/google/callback.php)
+
+   3) Produccion (ejemplo):
+
+      https://tudominio.cl/auth/google/callback.php
+
+      (ajuste segun base_url / DocumentRoot)
+
+   4) En config/config.php:
+
+      google_oauth.enabled = true
+
+      google_oauth.client_id = ...
+
+      google_oauth.client_secret = ...
+
+      google_oauth.hosted_domain = colegio.cl   (opcional, Workspace)
+
+   5) El email de Google debe existir en tabla users (mismo email).
+
+      Al primer login se vincula google_id automaticamente.
+
+   6) Migracion BD: py database/apply_all_migrations.py  (015_users_google_oauth.sql)
+
+
+
+5. Accesos:
+
+   - /public/index.php           Login unico (Google + hub de portales)
+
+   - /public/auth/google/start.php   Inicio OAuth (no abrir directo; use el boton)
+
+   - budget/login.php, oc/login.php, admin/login.php redirigen al home si solo hay Google
+
+
+
+6. Flujo recomendado:
+
+   a) Admin: crear tenant
+
+   b) Catalogo: centros de costo, divisiones, coordinaciones, actividades, cuentas
+
+   c) Usuarios presupuesto y OC por tenant
+
+   d) Presupuesto: actividades; OC: imputaciones automaticas por tenant_id
+
+
+
+Notas:
+
+- Imputaciones: po_budget_allocations; saldo = total linea - SUM(allocations).
+
+- BD dev unificada: py database/setup_unified.py (solo entorno local, borra BD).
+
+- Reiniciar datos operativos: php database/reset_operational_data.php --yes (NO en prod).
+

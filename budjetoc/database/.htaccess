@@ -1,0 +1,7 @@
+# Denegar acceso web a scripts de base de datos (solo CLI).
+<IfModule mod_authz_core.c>
+  Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+  Deny from all
+</IfModule>

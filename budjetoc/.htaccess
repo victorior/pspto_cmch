@@ -1,0 +1,45 @@
+AddDefaultCharset UTF-8
+
+
+
+# Seguridad basica si el DocumentRoot apunta a la raiz del proyecto (no a /public).
+
+# Idealmente, configure el vhost para que el DocumentRoot sea /public.
+
+
+
+Options -Indexes
+
+
+
+<IfModule mod_rewrite.c>
+
+  RewriteEngine On
+
+
+
+  # No permitir acceso a rutas internas del proyecto
+
+  RewriteRule ^(config|src|database)(/|$) - [F,L]
+
+
+
+  # Bloquear archivos sensibles
+
+  RewriteRule ^(\.editorconfig|INSTALACION\.txt|.*\.sql|.*\.csv)$ - [F,L]
+
+
+
+  # Enviar todo lo publico a /public/ (ruta relativa al subdirectorio de la app)
+
+  RewriteCond %{REQUEST_URI} !/public/ [NC]
+
+  RewriteRule ^$ public/ [R=302,L]
+
+  RewriteCond %{REQUEST_URI} !/public/ [NC]
+
+  RewriteRule ^(.*)$ public/$1 [R=302,L]
+
+</IfModule>
+
+

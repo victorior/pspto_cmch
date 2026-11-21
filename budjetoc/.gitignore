@@ -1,0 +1,19 @@
+# Config local (secretos)
+/config/config.php
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+.DS_Store
+
+# Logs / temporales
+*.log
+/tmp/
+
+# Rate limit (datos locales, no versionar)
+/var/login_rate_limit/
+
+# Dumps SQL en raiz (mantener fuera del repo)
+/cna*.sql

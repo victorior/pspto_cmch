@@ -1,0 +1,74 @@
+body.page-oc-legacy {
+  padding-top: 8px;
+  background: #f5f5f5;
+  font-size: 13px;
+}
+body.page-oc-legacy .oc-legacy-meta {
+  margin: 14px 0 0 12px;
+  color: #777;
+  font-size: 12px;
+  max-width: 28rem;
+}
+body.page-oc-legacy .panel-info > .panel-heading {
+  background: #d9edf7;
+  border-color: #bce8f1;
+}
+body.page-oc-legacy .ui-autocomplete {
+  z-index: 10060 !important;
+  max-height: 280px;
+  overflow-y: auto;
+}
+body.page-oc-legacy .oc-supplier-ac-menu {
+  display: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 10070;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  max-height: 240px;
+  overflow-y: auto;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+}
+body.page-oc-legacy .oc-supplier-ac-item {
+  padding: 7px 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+body.page-oc-legacy .oc-supplier-ac-item:hover {
+  background: #f0f7ff;
+}
+body.page-oc-legacy .oc-supplier-ac-empty {
+  padding: 7px 10px;
+  color: #888;
+  font-size: 12px;
+}
+body.page-oc-legacy .modal {
+  z-index: 10050 !important;
+}
+body.page-oc-legacy .modal-backdrop {
+  z-index: 10040 !important;
+}
+body.page-oc-legacy .cuenta-stacked select.form-control {
+  max-width: 100%;
+}
+body.page-oc-legacy #lines_table input.form-control {
+  font-size: 12px;
+}
+body.page-oc-legacy #resultados,
+body.page-oc-legacy #resultadosPspto {
+  margin-top: 10px;
+}
+body.page-oc-legacy .oc-modal-loader {
+  position: absolute;
+  text-align: center;
+  top: 55px;
+  width: 100%;
+  min-height: 1.25rem;
+  color: #64748b;
+}

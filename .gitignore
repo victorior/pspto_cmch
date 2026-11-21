@@ -1,0 +1,34 @@
+# Secrets y paquetes de despliegue locales
+**/config/config.php
+!**/config/config.example.php
+!**/config/config.production.example.php
+_bmad-output/deploy/*.zip
+_bmad-output/deploy/*-secrets.local.php
+_bmad-output/deploy/app_secret.txt
+_bmad-output/deploy/*.sql
+_bmad-output/deploy/staging/
+!_bmad-output/deploy/README.md
+
+# Dumps y datos locales
+*.sql
+!budjetoc/database/migrations/*.sql
+!budjetoc/database/schema.sql
+budjetoc/cna14865_*.sql
+budjetoc/cia35385_*.sql
+budjetoc/var/
+budjetoc/config/config.php
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+*.lnk
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Node (si aparece)
+node_modules/
