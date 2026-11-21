@@ -263,6 +263,37 @@ final class OcService
     }
 
     /**
+     * Reglas de transicion de estado OC.
+     * - No reabrir a Abierta desde Cerrada/Anulada (evita volver a editar contenido).
+     * - Para pasar a Cerrada se exige numero de factura/boleta proveedor (&gt; 0).
+     *
+     * @param array<string, mixed> $poRow Fila con status e invoice_number_in
+     */
+    public static function assertStatusTransition(array $poRow, int $newStatus): void
+    {
+        $cur = (int) ($poRow['status'] ?? -1);
+        if ($newStatus < 0 || $newStatus > 2) {
+            throw new RuntimeException('Estado de OC invalido.');
+        }
+        if ($newStatus === $cur) {
+            return;
+        }
+        if ($newStatus === self::STATUS_ABIERTA && $cur !== self::STATUS_ABIERTA) {
+            throw new RuntimeException(
+                'No se puede reabrir una OC cerrada o anulada. El contenido ya no es editable.'
+            );
+        }
+        if ($newStatus === self::STATUS_CERRADA) {
+            $inv = (int) ($poRow['invoice_number_in'] ?? 0);
+            if ($inv <= 0) {
+                throw new RuntimeException(
+                    'Debe ingresar el numero de factura/boleta del proveedor antes de cerrar la OC.'
+                );
+            }
+        }
+    }
+
+    /**
      * Actualiza unicamente tax_doc_type / tax_mode / tax_percent (multi-tenant).
      *
      * @param array{tax_doc_type: string, tax_mode: string, tax_percent: float} $taxProfile

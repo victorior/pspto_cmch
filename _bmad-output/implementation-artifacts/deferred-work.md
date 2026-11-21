@@ -17,3 +17,11 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-2-factura-afecta-iva-o-exenta-totales-e-impresion.md`
   summary: Sin harness JS para refreshDocTotals rama Factura+Exenta
   evidence: Repo sin runner JS; smoke manual de totales en browser
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-4-cambiar-perfil-tributario-cualquier-estado.md`
+  summary: activity_view Historial imputaciones reversadas (pendiente post-1.4)
+  evidence: Hallazgo walkthrough 1.1; no tocado en fix de reglas de cierre/reapertura
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-4-cambiar-perfil-tributario-cualquier-estado.md`
+  summary: FIX aplicado tras rechazo 1.4 — no reabrir Cerrada/Anulada; cerrar exige invoice_number_in
+  evidence: OcService::assertStatusTransition + update.php + UI; test_oc_status_rules.php

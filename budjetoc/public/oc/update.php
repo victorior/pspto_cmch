@@ -35,6 +35,19 @@ if (!empty($_POST['status_only'])) {
     if ($status < 0 || $status > 2) {
         $status = 0;
     }
+    $stPo = $pdo->prepare(
+        'SELECT id, status, invoice_number_in, numero_oc FROM purchase_orders WHERE id = ? AND tenant_id = ?'
+    );
+    $stPo->execute([$id, $tid]);
+    $poRow = $stPo->fetch(PDO::FETCH_ASSOC);
+    if ($poRow === false) {
+        redirect_to($loc);
+    }
+    try {
+        OcService::assertStatusTransition($poRow, $status);
+    } catch (Throwable $e) {
+        redirect_to($loc . '&err=' . rawurlencode($e->getMessage()));
+    }
     if ($status === OcService::STATUS_ANULADA) {
         $st = $pdo->prepare(
             'UPDATE purchase_orders SET status = ?, voided_at = COALESCE(voided_at, NOW())

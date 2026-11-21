@@ -60,6 +60,9 @@ if (isset($_GET['tax_updated'])) {
     $taxNum = (string) $_GET['tax_updated'];
     echo '<p class="alert alert-ok">OC ' . h($taxNum) . ': ' . h(t_es('oc_perfil_actualizado')) . '</p>';
 }
+if (isset($_GET['err']) && (string) $_GET['err'] !== '') {
+    echo '<p class="alert alert-err">' . h((string) $_GET['err']) . '</p>';
+}
 ?>
 <div class="card">
   <form method="get" style="display:flex;gap:0.5rem;align-items:end;flex-wrap:wrap;">
@@ -102,7 +105,14 @@ if (isset($_GET['tax_updated'])) {
             <input type="hidden" name="status_only" value="1">
             <input type="hidden" name="year" value="<?= $year ?>">
             <select name="status" aria-label="Estado OC" style="max-width:7rem;">
-              <?php foreach ($statusLabels as $sk => $sl): ?>
+              <?php
+                // No ofrecer reabrir a Abierta desde Cerrada/Anulada.
+                $statusOptions = $statusLabels;
+                if ($stKey !== OcService::STATUS_ABIERTA) {
+                    unset($statusOptions[OcService::STATUS_ABIERTA]);
+                }
+                foreach ($statusOptions as $sk => $sl):
+                    ?>
               <option value="<?= $sk ?>" <?= $stKey === $sk ? 'selected' : '' ?>><?= h($sl) ?></option>
               <?php endforeach; ?>
             </select>
