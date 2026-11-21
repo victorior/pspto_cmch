@@ -194,6 +194,7 @@ final class AdminAccess
                 ['href' => admin_href('tenants.php'), 'label' => 'Tenants', 'active' => $active === 'tenants'],
                 ['href' => admin_href('users.php'), 'label' => 'Usuarios', 'active' => $active === 'users'],
                 ['href' => admin_href('edit_permissions.php'), 'label' => 'Permisos de edicion', 'active' => $active === 'edit_permissions'],
+                ['href' => admin_href('budget_activities_import.php'), 'label' => 'Carga actividades', 'active' => $active === 'budget_activities_import'],
             ];
         }
 

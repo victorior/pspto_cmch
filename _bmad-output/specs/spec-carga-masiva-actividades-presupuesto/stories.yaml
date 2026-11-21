@@ -1,0 +1,39 @@
+- id: "1"
+  title: Pantalla admin + plantilla CSV
+  description: >-
+    Entrada de carga masiva solo para super admin, acotada al tenant elegido (CAP-1),
+    con link permanente de descarga de plantilla CSV UTF-8 con BOM (CAP-2; plantilla-import.md).
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: >-
+    UI en panel admin; patrón cercano a AdminUserCsvImportService / admin users CSV sample.
+
+- id: "2"
+  title: Validación previa compacta
+  description: >-
+    Validar el CSV antes de confirmar (CAP-4): informar cuántos registros se subirían y
+    listar solo los que tienen error (incl. activity_number ya en BD); sin tabla de filas OK.
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: >-
+    Reusar patrones de AdminUserCsvImportService; encoding UTF-8 BOM; ids existentes = error, no skip silencioso.
+
+- id: "3"
+  title: Confirmar altas de actividades
+  description: >-
+    Tras validación limpia, crear solo actividades nuevas con atribución División/Coordinación
+    del CSV (CAP-3; budget_headers/details según brownfield.md y plantilla-import.md).
+  spec_checkpoint: false
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Pasar por BudgetActivityRules / BudgetService::createActivity; no upsert; scope tenant_id estricto.
+
+- id: "4"
+  title: Verificación local y entrega
+  description: >-
+    Cubrir delivery.md: pruebas locales del flujo completo, commit y push a Main en GitHub,
+    y zip de producción con raíz budget/ vía _bmad-output/deploy/ para nanosoft.cl/budget.
+  spec_checkpoint: false
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Tests locales (XAMPP/budjetoc); push Main; zip sin secretos; DocumentRoot public/ bajo /budget.

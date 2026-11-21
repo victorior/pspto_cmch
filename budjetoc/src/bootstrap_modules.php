@@ -33,6 +33,7 @@ function budjetoc_load_app_modules(): void
     }
     if ($isAdmin) {
         require_once __DIR__ . '/AdminUserCsvImportService.php';
+        require_once __DIR__ . '/AdminBudgetActivityCsvImportService.php';
     }
     if ($needCatalog) {
         require_once __DIR__ . '/CatalogService.php';

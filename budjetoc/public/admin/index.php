@@ -35,6 +35,7 @@ require dirname(__DIR__) . '/inc/layout_top.php';
     <a class="btn btn-primary" href="<?= h(url_path('admin/tenants.php')) ?>">Gestionar tenants</a>
     <a class="btn" href="<?= h(url_path('admin/users.php')) ?>">Gestionar usuarios</a>
     <a class="btn" href="<?= h(url_path('admin/edit_permissions.php')) ?>">Permisos de edicion</a>
+    <a class="btn" href="<?= h(url_path('admin/budget_activities_import.php')) ?>">Carga actividades</a>
   </p>
 </div>
 <div class="card">
