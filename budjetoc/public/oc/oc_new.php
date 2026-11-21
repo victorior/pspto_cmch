@@ -171,6 +171,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $taxDocTypePost = strtolower(trim((string) ($_POST['tax_doc_type'] ?? '')));
         $taxFacturaModePost = strtolower(trim((string) ($_POST['tax_factura_mode'] ?? '')));
+        $taxRetencionPost = trim((string) ($_POST['tax_retencion_percent'] ?? ''));
+        $folioYearInt = (int) $folioYear;
         $taxProfile = null;
         if ($taxDocTypePost === '') {
             if ($purchaseOrderId <= 0) {
@@ -189,7 +191,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             // Historica sin perfil: dejar tax_* sin cambios (inferencia legado).
         } else {
-            $taxProfile = oc_tax_profile_from_form_input($taxDocTypePost, $taxFacturaModePost);
+            $taxProfile = oc_tax_profile_from_form_input(
+                $taxDocTypePost,
+                $taxFacturaModePost,
+                $folioYearInt,
+                $taxRetencionPost
+            );
         }
 
         if ($purchaseOrderId > 0) {
@@ -272,6 +279,8 @@ $reqDefault = $rep('req_number', '');
 $folioYearDefault = $rep('folio_year', $year);
 $taxDocTypeDefault = $rep('tax_doc_type', '');
 $taxFacturaModeDefault = $rep('tax_factura_mode', '');
+$taxRetencionPercentDefault = $rep('tax_retencion_percent', '');
+$taxRetencionTouched = isset($_POST['tax_retencion_percent']);
 if ($editPoId > 0 && $editData === null) {
     $editData = OcService::getPurchaseOrderForEdit($pdo, $tid, $editPoId);
     if ($editData !== null && OcService::canEditPurchaseOrder($editData['order'])) {
@@ -318,9 +327,22 @@ if ($isEdit && $editData !== null) {
             $taxFacturaModeDefault = 'iva';
         }
     }
+    if ($taxRetencionPercentDefault === '' && $taxDocTypeDefault === 'boleta') {
+        $pctHydrate = $editData['order']['tax_percent'] ?? null;
+        if ($pctHydrate !== null && $pctHydrate !== '') {
+            $taxRetencionPercentDefault = rtrim(rtrim(number_format((float) $pctHydrate, 4, '.', ''), '0'), '.');
+            $taxRetencionTouched = true;
+        }
+    }
 }
 if ($taxDocTypeDefault === 'factura' && $taxFacturaModeDefault !== 'exento') {
     $taxFacturaModeDefault = 'iva';
+}
+if ($taxRetencionPercentDefault === '' && $taxDocTypeDefault === 'boleta') {
+    $taxRetencionPercentDefault = rtrim(
+        rtrim(number_format(oc_boleta_retencion_default_for_year((int) $folioYearDefault), 4, '.', ''), '0'),
+        '.'
+    );
 }
 // Nueva OC o edicion con perfil ya persistido: tipo obligatorio. Historica sin perfil: opcional.
 $taxDocTypeRequired = !$isEdit
@@ -350,7 +372,9 @@ window.OC_NEW_CONFIG = {
   taxDocType: <?= json_encode($taxDocTypeDefault, JSON_UNESCAPED_UNICODE) ?>,
   taxDocTypeRequired: <?= $taxDocTypeRequired ? 'true' : 'false' ?>,
   taxFacturaMode: <?= json_encode($taxFacturaModeDefault, JSON_UNESCAPED_UNICODE) ?>,
-  boletaRetencionPercent: <?= json_encode(oc_boleta_retencion_rate_percent(''), JSON_UNESCAPED_UNICODE) ?>,
+  boletaRetencionByYear: <?= json_encode(oc_boleta_retencion_rate_map(), JSON_UNESCAPED_UNICODE) ?>,
+  boletaRetencionPercent: <?= json_encode($taxRetencionPercentDefault, JSON_UNESCAPED_UNICODE) ?>,
+  taxRetencionTouched: <?= $taxRetencionTouched ? 'true' : 'false' ?>,
   initialLines: <?= json_encode($initialLines, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_HEX_TAG) ?>,
   initialBudget: <?= json_encode($initialBudget, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_HEX_TAG) ?>,
   pickIxStart: <?= count($initialBudget) ?>,
@@ -361,7 +385,7 @@ window.OC_NEW_CONFIG = {
   }
 };
 </script>
-<script src="js/oc_new_legacy.js?v=20261121b"></script>
+<script src="js/oc_new_legacy.js?v=20261121c"></script>
 <?php
 $layoutPageScripts = (string) ob_get_clean();
 require __DIR__ . '/inc/layout_oc_legacy_bottom.php';

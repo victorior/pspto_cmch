@@ -71,6 +71,33 @@ function oc_boleta_retencion_rate_percent(string $productName): float
     return 12.25;
 }
 
+/**
+ * Default de retencion Boleta por ano comercial (Ley 21.133).
+ * Mapa minimo: 2026=15,25; 2027=16; 2028=17.
+ * Anos menores a 2026 → 15,25; anos mayores a 2028 → 17 hasta ampliar mapa.
+ */
+function oc_boleta_retencion_default_for_year(int $year): float
+{
+    if ($year <= 2026) {
+        return 15.25;
+    }
+    if ($year === 2027) {
+        return 16.0;
+    }
+
+    return 17.0;
+}
+
+/** @return array<int, float> */
+function oc_boleta_retencion_rate_map(): array
+{
+    return [
+        2026 => 15.25,
+        2027 => 16.0,
+        2028 => 17.0,
+    ];
+}
+
 /** @param array<int, array<string, mixed>> $lines */
 function oc_tax_profile_from_po_lines(array $lines): array
 {
@@ -158,20 +185,27 @@ function oc_tax_profile_from_po_lines(array $lines): array
 }
 
 /**
- * Campos base a persistir segun tipo de documento (stories 1.1 / 1.2).
+ * Campos base a persistir segun tipo de documento (stories 1.1 / 1.2 / 1.3).
  * Factura + rama iva|exento (null/omitido → iva/19); Boleta ignora $facturaMode
- * y usa retencion + % provisional del helper legado.
+ * y usa retencion + % explícito o default por folio_year (Ley 21.133).
  *
  * @return array{tax_doc_type: string, tax_mode: string, tax_percent: float}
  */
-function oc_tax_profile_base_fields(string $docType, ?string $facturaMode = null): array
-{
+function oc_tax_profile_base_fields(
+    string $docType,
+    ?string $facturaMode = null,
+    ?int $folioYear = null,
+    ?float $retencionPercent = null
+): array {
     $docType = strtolower(trim($docType));
     if ($docType === 'boleta') {
+        $year = $folioYear ?? (int) date('Y');
+        $rate = $retencionPercent ?? oc_boleta_retencion_default_for_year($year);
+
         return [
             'tax_doc_type' => 'boleta',
             'tax_mode' => 'retencion',
-            'tax_percent' => oc_boleta_retencion_rate_percent(''),
+            'tax_percent' => $rate,
         ];
     }
     if ($docType === 'factura') {
@@ -215,8 +249,12 @@ function oc_tax_profile_exento_fields(): array
  * @return array{tax_doc_type: string, tax_mode: string, tax_percent: float}
  * @throws RuntimeException
  */
-function oc_tax_profile_from_form_input(string $taxDocType, string $taxFacturaMode = ''): array
-{
+function oc_tax_profile_from_form_input(
+    string $taxDocType,
+    string $taxFacturaMode = '',
+    ?int $folioYear = null,
+    ?string $retencionPercentRaw = null
+): array {
     $taxDocType = strtolower(trim($taxDocType));
     $taxFacturaMode = strtolower(trim($taxFacturaMode));
     if ($taxDocType !== 'factura' && $taxDocType !== 'boleta') {
@@ -230,7 +268,20 @@ function oc_tax_profile_from_form_input(string $taxDocType, string $taxFacturaMo
         return oc_tax_profile_base_fields('factura', $taxFacturaMode);
     }
 
-    return oc_tax_profile_base_fields('boleta');
+    $year = $folioYear ?? (int) date('Y');
+    $raw = $retencionPercentRaw === null ? '' : trim(str_replace(',', '.', (string) $retencionPercentRaw));
+    if ($raw === '') {
+        return oc_tax_profile_base_fields('boleta', null, $year, null);
+    }
+    if (!is_numeric($raw)) {
+        throw new RuntimeException('El % de retencion debe ser un numero valido.');
+    }
+    $pct = (float) $raw;
+    if ($pct <= 0.0 || $pct > 100.0) {
+        throw new RuntimeException('El % de retencion debe ser mayor a 0 y menor o igual a 100.');
+    }
+
+    return oc_tax_profile_base_fields('boleta', null, $year, $pct);
 }
 
 /** True si la OC tiene perfil tributario persistido (tipo o modo no vacio). */

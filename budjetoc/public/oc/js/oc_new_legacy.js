@@ -53,9 +53,26 @@ jQuery(function ($) {
   }
 
   var OC_TAX_PERCENT = 19;
-  var OC_BOLETA_RETENCION_PERCENT = parseFloat(cfg.boletaRetencionPercent);
-  if (isNaN(OC_BOLETA_RETENCION_PERCENT)) {
-    OC_BOLETA_RETENCION_PERCENT = 12.25;
+  var BOLETA_RETENCION_BY_YEAR = cfg.boletaRetencionByYear || { 2026: 15.25, 2027: 16, 2028: 17 };
+  var retencionTouched = !!cfg.taxRetencionTouched;
+
+  function boletaDefaultForYear(yearRaw) {
+    var y = parseInt(yearRaw, 10);
+    if (isNaN(y)) {
+      y = new Date().getFullYear();
+    }
+    if (y <= 2026) {
+      return BOLETA_RETENCION_BY_YEAR[2026] != null ? Number(BOLETA_RETENCION_BY_YEAR[2026]) : 15.25;
+    }
+    if (y === 2027) {
+      return BOLETA_RETENCION_BY_YEAR[2027] != null ? Number(BOLETA_RETENCION_BY_YEAR[2027]) : 16;
+    }
+    return BOLETA_RETENCION_BY_YEAR[2028] != null ? Number(BOLETA_RETENCION_BY_YEAR[2028]) : 17;
+  }
+
+  function formatRetencionInput(rate) {
+    var x = Math.round(Number(rate) * 10000) / 10000;
+    return String(x).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
   }
 
   function selectedTaxDocType() {
@@ -79,6 +96,25 @@ jQuery(function ($) {
     return 'iva';
   }
 
+  function applyBoletaRetencionDefaultIfUntouched() {
+    var $inp = $('#tax_retencion_percent');
+    if (!$inp.length || retencionTouched) {
+      return;
+    }
+    $inp.val(formatRetencionInput(boletaDefaultForYear($('#folio_year').val())));
+  }
+
+  function selectedBoletaRetencionRate() {
+    var $inp = $('#tax_retencion_percent');
+    if ($inp.length) {
+      var parsed = parseFloat(String($inp.val() || '').replace(',', '.'));
+      if (!isNaN(parsed) && parsed > 0 && parsed <= 100) {
+        return parsed;
+      }
+    }
+    return boletaDefaultForYear($('#folio_year').val());
+  }
+
   function syncTaxFacturaModeVisibility() {
     var isFactura = selectedTaxDocType() === 'factura';
     var $wrap = $('#tax_factura_mode_wrap');
@@ -89,6 +125,21 @@ jQuery(function ($) {
     if (isFactura) {
       if (!$('input[name="tax_factura_mode"]:checked').length) {
         $('#tax_factura_mode_iva').prop('checked', true);
+      }
+    }
+  }
+
+  function syncTaxRetencionVisibility() {
+    var isBoleta = selectedTaxDocType() === 'boleta';
+    var $wrap = $('#tax_retencion_wrap');
+    var $inp = $('#tax_retencion_percent');
+    if ($wrap.length) {
+      $wrap.toggle(isBoleta);
+    }
+    if ($inp.length) {
+      $inp.prop('disabled', !isBoleta);
+      if (isBoleta) {
+        applyBoletaRetencionDefaultIfUntouched();
       }
     }
   }
@@ -273,7 +324,7 @@ jQuery(function ($) {
         prof = { mode: 'iva', rate: OC_TAX_PERCENT };
       }
     } else if (docType === 'boleta') {
-      prof = { mode: 'retencion', rate: OC_BOLETA_RETENCION_PERCENT };
+      prof = { mode: 'retencion', rate: selectedBoletaRetencionRate() };
     } else {
       prof = ocDetectTaxProfile();
     }
@@ -809,11 +860,24 @@ jQuery(function ($) {
 
   $('#tax_doc_type').on('change', function () {
     syncTaxFacturaModeVisibility();
+    syncTaxRetencionVisibility();
     refreshDocTotals();
   });
 
   $(document).on('change', 'input[name="tax_factura_mode"]', function () {
     refreshDocTotals();
+  });
+
+  $('#tax_retencion_percent').on('input change', function () {
+    retencionTouched = true;
+    refreshDocTotals();
+  });
+
+  $('#folio_year').on('input change', function () {
+    if (selectedTaxDocType() === 'boleta') {
+      applyBoletaRetencionDefaultIfUntouched();
+      refreshDocTotals();
+    }
   });
 
   $('#oc-form').on('submit', function (e) {
@@ -833,6 +897,18 @@ jQuery(function ($) {
         alert('Debe indicar si la factura es Afecta IVA o Exenta.');
         $('#tax_factura_mode_wrap').show();
         $('#tax_factura_mode_iva').focus();
+        return false;
+      }
+    }
+    if (selectedTaxDocType() === 'boleta') {
+      $('#tax_retencion_percent').prop('disabled', false);
+      var retRaw = String($('#tax_retencion_percent').val() || '').trim().replace(',', '.');
+      var retPct = parseFloat(retRaw);
+      if (retRaw === '' || isNaN(retPct) || retPct <= 0 || retPct > 100) {
+        e.preventDefault();
+        alert('Indique un % de retencion valido (mayor a 0 y hasta 100).');
+        $('#tax_retencion_wrap').show();
+        $('#tax_retencion_percent').focus();
         return false;
       }
     }
@@ -955,6 +1031,7 @@ jQuery(function ($) {
     });
   }
   syncTaxFacturaModeVisibility();
+  syncTaxRetencionVisibility();
   if ($('#lines_body tr').length || $('#resultadosPspto .budget-pick').length) {
     refreshAllocHint();
     refreshDocTotals();

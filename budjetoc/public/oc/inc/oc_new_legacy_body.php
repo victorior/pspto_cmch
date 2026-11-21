@@ -265,6 +265,9 @@ declare(strict_types=1);
         $taxDocTypeUi = strtolower(trim((string) ($taxDocTypeDefault ?? '')));
         $showFacturaMode = $taxDocTypeUi === 'factura';
         $facturaModeWrapStyle = $showFacturaMode ? '' : 'display:none;';
+        $showRetencion = $taxDocTypeUi === 'boleta';
+        $retencionWrapStyle = $showRetencion ? '' : 'display:none;';
+        $retencionValUi = (string) ($taxRetencionPercentDefault ?? '');
         ?>
         <div id="tax_factura_mode_wrap" class="col-md-2"<?= $facturaModeWrapStyle !== '' ? ' style="' . h($facturaModeWrapStyle) . '"' : '' ?>>
           <label class="radio-inline" style="padding-top:5px;">
@@ -275,6 +278,12 @@ declare(strict_types=1);
             <input type="radio" name="tax_factura_mode" id="tax_factura_mode_exento" value="exento"
                    <?= $facturaModeUi === 'exento' ? 'checked' : '' ?>> Exenta
           </label>
+        </div>
+        <div id="tax_retencion_wrap" class="col-md-2"<?= $retencionWrapStyle !== '' ? ' style="' . h($retencionWrapStyle) . '"' : '' ?>>
+          <label for="tax_retencion_percent" class="control-label" style="padding-top:0;margin-bottom:2px;">Retencion %</label>
+          <input type="number" class="form-control input-sm" name="tax_retencion_percent" id="tax_retencion_percent"
+                 step="0.01" min="0.01" max="100" value="<?= h($retencionValUi) ?>"
+                 <?= $showRetencion ? '' : 'disabled' ?>>
         </div>
         <label for="folio_year" class="col-md-1 control-label">Folio:</label>
         <div class="col-md-2">

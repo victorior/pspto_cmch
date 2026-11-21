@@ -61,12 +61,12 @@ assertEq('crear factura mode', 'iva', $resolvedF['mode']);
 assertEq('crear factura doc_type', 'factura', $resolvedF['doc_type']);
 assertEq('crear factura percent', 19.0, $resolvedF['tax_percent']);
 
-// Crear con Boleta → base fields + resolve
+// Crear con Boleta → base fields + resolve (default anual Ley 21.133; ya no 12.25 provisional)
 $baseB = oc_tax_profile_base_fields('boleta');
 assertEq('boleta tax_doc_type', 'boleta', $baseB['tax_doc_type']);
 assertEq('boleta tax_mode', 'retencion', $baseB['tax_mode']);
-$provRate = oc_boleta_retencion_rate_percent('');
-assertEq('boleta tax_percent provisional', $provRate, $baseB['tax_percent']);
+$defaultRate = oc_boleta_retencion_default_for_year((int) date('Y'));
+assertEq('boleta tax_percent default anual', $defaultRate, $baseB['tax_percent']);
 
 $resolvedB = oc_tax_profile_resolve($baseB, $linesFactura);
 assertEq('crear boleta mode', 'retencion', $resolvedB['mode']);
