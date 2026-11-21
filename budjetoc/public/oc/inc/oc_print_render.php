@@ -164,7 +164,7 @@ $showAllocationsDetailTable = $showAllocationsDetailTable ?? false;
   <div class="oc-supplier-row">
     <div>
       <p><strong>Proveedor:</strong> <?= h($supplier) ?></p>
-      <?php if ($taxProfile['mode'] === 'retencion'): ?>
+      <?php if (($taxProfile['doc_type'] ?? null) === 'boleta' || $taxProfile['mode'] === 'retencion'): ?>
       <p><strong>Boleta de honorarios</strong> <?= h(t_es('em_dash')) ?> <strong><?= h(t_es('n_ordinal_colon')) ?></strong>
         <?= $invoiceNumberIn > 0 ? h((string) $invoiceNumberIn) : h($sinValor) ?></p>
       <?php else: ?>

@@ -22,6 +22,8 @@ $noteDefault = '';
 $reqDefault = '';
 $condicionesDefault = '';
 $folioYearDefault = $year;
+$taxDocTypeDefault = '';
+$taxDocTypeRequired = true;
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $editPoId > 0) {
     $editData = OcService::getPurchaseOrderForEdit($pdo, $tid, $editPoId);
@@ -46,6 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $editPoId > 0) {
         $formDefaults['nro_cta2'] = (string) (AccountCodeCatalog::displayAccountId($pdo, $tid, (int) ($po['account_code_2'] ?? 0)) ?? 0);
         $formDefaults['nro_cta3'] = (string) (AccountCodeCatalog::displayAccountId($pdo, $tid, (int) ($po['account_code_3'] ?? 0)) ?? 0);
         $formDefaults['nro_cta4'] = (string) (AccountCodeCatalog::displayAccountId($pdo, $tid, (int) ($po['account_code_4'] ?? 0)) ?? 0);
+        $formDefaults['tax_doc_type'] = strtolower(trim((string) ($po['tax_doc_type'] ?? '')));
         $selectedSupplierId = (int) ($po['supplier_id'] ?? 0);
         $selectedSupplierName = trim((string) ($po['supplier_display'] ?? ''));
         $selectedSupplierPhone = trim((string) ($po['supplier_phone'] ?? ''));
@@ -149,9 +152,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($lines === []) {
             throw new RuntimeException('Agregue al menos una linea de producto.');
         }
-        if ($allocs === []) {
-            throw new RuntimeException('Debe imputar al menos una linea de presupuesto (actividad ' . $year . ').');
-        }
         $nroCta1 = (int) ($_POST['nro_cta'] ?? 0);
         if ($nroCta1 <= 0) {
             throw new RuntimeException('Seleccione al menos la primera cuenta (' . t_es('n_cta') . ').');
@@ -165,6 +165,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             (int) ($_POST['nro_cta3'] ?? 0),
             (int) ($_POST['nro_cta4'] ?? 0),
         ];
+
+        $taxDocTypePost = strtolower(trim((string) ($_POST['tax_doc_type'] ?? '')));
+        $taxFacturaModePost = strtolower(trim((string) ($_POST['tax_factura_mode'] ?? '')));
+        $taxRetencionPost = trim((string) ($_POST['tax_retencion_percent'] ?? ''));
+        $folioYearInt = (int) $folioYear;
+        $taxProfile = null;
+        if ($taxDocTypePost === '') {
+            if ($purchaseOrderId <= 0) {
+                throw new RuntimeException('Debe elegir el tipo de documento (Factura o Boleta de Honorarios).');
+            }
+            $stTax = $pdo->prepare(
+                'SELECT tax_doc_type, tax_mode, tax_percent FROM purchase_orders WHERE id = ? AND tenant_id = ?'
+            );
+            $stTax->execute([$purchaseOrderId, $tid]);
+            $existingTax = $stTax->fetch(PDO::FETCH_ASSOC);
+            if ($existingTax === false) {
+                throw new RuntimeException('OC no encontrada.');
+            }
+            if (oc_tax_profile_is_persisted($existingTax)) {
+                throw new RuntimeException('Debe elegir el tipo de documento (Factura o Boleta de Honorarios).');
+            }
+            // Historica sin perfil: dejar tax_* sin cambios (inferencia legado).
+        } else {
+            $taxProfile = oc_tax_profile_from_form_input(
+                $taxDocTypePost,
+                $taxFacturaModePost,
+                $folioYearInt,
+                $taxRetencionPost
+            );
+        }
 
         if ($purchaseOrderId > 0) {
             OcService::updatePurchaseOrder(
@@ -182,12 +212,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $acct[1],
                 $acct[2],
                 $acct[3],
+                $taxProfile,
             );
-            $st = $pdo->prepare('SELECT numero_oc FROM purchase_orders WHERE id = ?');
-            $st->execute([$purchaseOrderId]);
+            $st = $pdo->prepare('SELECT numero_oc FROM purchase_orders WHERE id = ? AND tenant_id = ?');
+            $st->execute([$purchaseOrderId, $tid]);
             $num = (int) $st->fetchColumn();
             header('Location: index.php?year=' . urlencode($folioYear) . '&updated=' . $num);
             exit;
+        }
+
+        if ($taxProfile === null) {
+            throw new RuntimeException('Debe elegir el tipo de documento (Factura o Boleta de Honorarios).');
         }
 
         $poId = OcService::createPurchaseOrder(
@@ -206,9 +241,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $acct[1],
             $acct[2],
             $acct[3],
+            $taxProfile,
         );
-        $st = $pdo->prepare('SELECT numero_oc FROM purchase_orders WHERE id = ?');
-        $st->execute([$poId]);
+        $st = $pdo->prepare('SELECT numero_oc FROM purchase_orders WHERE id = ? AND tenant_id = ?');
+        $st->execute([$poId, $tid]);
         $num = (int) $st->fetchColumn();
         header('Location: index.php?year=' . urlencode($folioYear) . '&ok=' . $num);
         exit;
@@ -238,6 +274,10 @@ $condicionesDefault = $rep('condiciones', '');
 $noteDefault = $rep('note', '');
 $reqDefault = $rep('req_number', '');
 $folioYearDefault = $rep('folio_year', $year);
+$taxDocTypeDefault = $rep('tax_doc_type', '');
+$taxFacturaModeDefault = $rep('tax_factura_mode', '');
+$taxRetencionPercentDefault = $rep('tax_retencion_percent', '');
+$taxRetencionTouched = isset($_POST['tax_retencion_percent']);
 if ($editPoId > 0 && $editData === null) {
     $editData = OcService::getPurchaseOrderForEdit($pdo, $tid, $editPoId);
     if ($editData !== null && OcService::canEditPurchaseOrder($editData['order'])) {
@@ -264,6 +304,48 @@ if ($editPoId > 0 && $editData === null) {
     $isEdit = $editPoId > 0 && $editData !== null;
 }
 
+if ($isEdit && $editData !== null) {
+    if ($taxDocTypeDefault === '') {
+        $taxDocTypeDefault = strtolower(trim((string) ($editData['order']['tax_doc_type'] ?? '')));
+    }
+    if ($taxDocTypeDefault === '') {
+        $modeHydrate = strtolower(trim((string) ($editData['order']['tax_mode'] ?? '')));
+        if ($modeHydrate === 'retencion') {
+            $taxDocTypeDefault = 'boleta';
+        } elseif ($modeHydrate === 'iva' || $modeHydrate === 'exento') {
+            $taxDocTypeDefault = 'factura';
+        }
+    }
+    if ($taxFacturaModeDefault === '' && $taxDocTypeDefault === 'factura') {
+        $modeHydrate = strtolower(trim((string) ($editData['order']['tax_mode'] ?? '')));
+        if ($modeHydrate === 'exento') {
+            $taxFacturaModeDefault = 'exento';
+        } elseif ($modeHydrate === 'iva' || $modeHydrate === '') {
+            $taxFacturaModeDefault = 'iva';
+        }
+    }
+    if ($taxRetencionPercentDefault === '' && $taxDocTypeDefault === 'boleta') {
+        $pctHydrate = $editData['order']['tax_percent'] ?? null;
+        if ($pctHydrate !== null && $pctHydrate !== '') {
+            $taxRetencionPercentDefault = rtrim(rtrim(number_format((float) $pctHydrate, 4, '.', ''), '0'), '.');
+            $taxRetencionTouched = true;
+        }
+    }
+}
+if ($taxDocTypeDefault === 'factura' && $taxFacturaModeDefault !== 'exento') {
+    $taxFacturaModeDefault = 'iva';
+}
+if ($taxRetencionPercentDefault === '' && $taxDocTypeDefault === 'boleta') {
+    $taxRetencionPercentDefault = rtrim(
+        rtrim(number_format(oc_boleta_retencion_default_for_year((int) $folioYearDefault), 4, '.', ''), '0'),
+        '.'
+    );
+}
+// Nueva OC o edicion con perfil ya persistido: tipo obligatorio. Historica sin perfil: opcional.
+$taxDocTypeRequired = !$isEdit
+    || $taxDocTypeDefault !== ''
+    || ($isEdit && $editData !== null && oc_tax_profile_is_persisted($editData['order']));
+
 $layoutTitle = $isEdit
     ? $ocNavBrand . ' ' . t_es('sep_title') . ' ' . t_es('editar_oc')
     : $ocNavBrand . ' ' . t_es('sep_title') . ' ' . t_es('nueva_oc');
@@ -284,6 +366,12 @@ window.OC_NEW_CONFIG = {
   nroCta2: <?= $nroCta2Default ?>,
   nroCta3: <?= $nroCta3Default ?>,
   nroCta4: <?= $nroCta4Default ?>,
+  taxDocType: <?= json_encode($taxDocTypeDefault, JSON_UNESCAPED_UNICODE) ?>,
+  taxDocTypeRequired: <?= $taxDocTypeRequired ? 'true' : 'false' ?>,
+  taxFacturaMode: <?= json_encode($taxFacturaModeDefault, JSON_UNESCAPED_UNICODE) ?>,
+  boletaRetencionByYear: <?= json_encode(oc_boleta_retencion_rate_map(), JSON_UNESCAPED_UNICODE) ?>,
+  boletaRetencionPercent: <?= json_encode($taxRetencionPercentDefault, JSON_UNESCAPED_UNICODE) ?>,
+  taxRetencionTouched: <?= $taxRetencionTouched ? 'true' : 'false' ?>,
   initialLines: <?= json_encode($initialLines, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_HEX_TAG) ?>,
   initialBudget: <?= json_encode($initialBudget, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_HEX_TAG) ?>,
   pickIxStart: <?= count($initialBudget) ?>,
@@ -294,7 +382,7 @@ window.OC_NEW_CONFIG = {
   }
 };
 </script>
-<script src="js/oc_new_legacy.js?v=20260544"></script>
+<script src="js/oc_new_legacy.js?v=20261121c"></script>
 <?php
 $layoutPageScripts = (string) ob_get_clean();
 require __DIR__ . '/inc/layout_oc_legacy_bottom.php';

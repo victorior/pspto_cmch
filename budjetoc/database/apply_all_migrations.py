@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Aplica migraciones pendientes 001-014 (idempotente donde es posible)."""
+"""Aplica migraciones pendientes 001-016 (idempotente donde es posible)."""
 from __future__ import annotations
 
 import re
@@ -17,13 +17,23 @@ def db_cfg() -> dict:
         m = re.search(rf"'{key}'\s*=>\s*'([^']*)'", text)
         return m.group(1) if m else default
 
-    return {
+    def grab_int(key: str, default: int | None = None) -> int | None:
+        m = re.search(rf"'{key}'\s*=>\s*(\d+)", text)
+        if m:
+            return int(m.group(1))
+        return default
+
+    cfg = {
         "host": grab("host", "127.0.0.1"),
         "user": grab("user", "root"),
         "password": grab("pass", ""),
         "database": grab("name", "budjetoc"),
         "charset": "utf8mb4",
     }
+    port = grab_int("port")
+    if port is not None:
+        cfg["port"] = port
+    return cfg
 
 
 def strip_comments(block: str) -> str:

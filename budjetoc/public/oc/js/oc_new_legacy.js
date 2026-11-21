@@ -53,6 +53,96 @@ jQuery(function ($) {
   }
 
   var OC_TAX_PERCENT = 19;
+  var BOLETA_RETENCION_BY_YEAR = cfg.boletaRetencionByYear || { 2026: 15.25, 2027: 16, 2028: 17 };
+  var retencionTouched = !!cfg.taxRetencionTouched;
+
+  function boletaDefaultForYear(yearRaw) {
+    var y = parseInt(yearRaw, 10);
+    if (isNaN(y)) {
+      y = new Date().getFullYear();
+    }
+    if (y <= 2026) {
+      return BOLETA_RETENCION_BY_YEAR[2026] != null ? Number(BOLETA_RETENCION_BY_YEAR[2026]) : 15.25;
+    }
+    if (y === 2027) {
+      return BOLETA_RETENCION_BY_YEAR[2027] != null ? Number(BOLETA_RETENCION_BY_YEAR[2027]) : 16;
+    }
+    return BOLETA_RETENCION_BY_YEAR[2028] != null ? Number(BOLETA_RETENCION_BY_YEAR[2028]) : 17;
+  }
+
+  function formatRetencionInput(rate) {
+    var x = Math.round(Number(rate) * 10000) / 10000;
+    return String(x).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+  }
+
+  function selectedTaxDocType() {
+    var $sel = $('#tax_doc_type');
+    if (!$sel.length) {
+      return '';
+    }
+    return String($sel.val() || '').trim().toLowerCase();
+  }
+
+  /** Rama factura: iva | exento (default iva al elegir Factura). */
+  function selectedTaxFacturaMode() {
+    var $checked = $('input[name="tax_factura_mode"]:checked');
+    if ($checked.length) {
+      return String($checked.val() || '').trim().toLowerCase();
+    }
+    var fromCfg = String(cfg.taxFacturaMode || '').trim().toLowerCase();
+    if (fromCfg === 'exento') {
+      return 'exento';
+    }
+    return 'iva';
+  }
+
+  function applyBoletaRetencionDefaultIfUntouched() {
+    var $inp = $('#tax_retencion_percent');
+    if (!$inp.length || retencionTouched) {
+      return;
+    }
+    $inp.val(formatRetencionInput(boletaDefaultForYear($('#folio_year').val())));
+  }
+
+  function selectedBoletaRetencionRate() {
+    var $inp = $('#tax_retencion_percent');
+    if ($inp.length) {
+      var parsed = parseFloat(String($inp.val() || '').replace(',', '.'));
+      if (!isNaN(parsed) && parsed > 0 && parsed <= 100) {
+        return parsed;
+      }
+    }
+    return boletaDefaultForYear($('#folio_year').val());
+  }
+
+  function syncTaxFacturaModeVisibility() {
+    var isFactura = selectedTaxDocType() === 'factura';
+    var $wrap = $('#tax_factura_mode_wrap');
+    if (!$wrap.length) {
+      return;
+    }
+    $wrap.toggle(isFactura);
+    if (isFactura) {
+      if (!$('input[name="tax_factura_mode"]:checked').length) {
+        $('#tax_factura_mode_iva').prop('checked', true);
+      }
+    }
+  }
+
+  function syncTaxRetencionVisibility() {
+    var isBoleta = selectedTaxDocType() === 'boleta';
+    var $wrap = $('#tax_retencion_wrap');
+    var $inp = $('#tax_retencion_percent');
+    if ($wrap.length) {
+      $wrap.toggle(isBoleta);
+    }
+    if ($inp.length) {
+      $inp.prop('disabled', !isBoleta);
+      if (isBoleta) {
+        applyBoletaRetencionDefaultIfUntouched();
+      }
+    }
+  }
 
   function money0(n) {
     if (isNaN(n)) {
@@ -223,7 +313,21 @@ jQuery(function ($) {
 
   function refreshDocTotals() {
     var sub = getOcLineSubtotal();
-    var prof = ocDetectTaxProfile();
+    var docType = selectedTaxDocType();
+    var prof;
+    // Perfil elegido manda; sin eleccion (historica) → inferencia legado.
+    // Con Factura + rama, no inferir por producto (ocDetectTaxProfile).
+    if (docType === 'factura') {
+      if (selectedTaxFacturaMode() === 'exento') {
+        prof = { mode: 'exento', rate: 0 };
+      } else {
+        prof = { mode: 'iva', rate: OC_TAX_PERCENT };
+      }
+    } else if (docType === 'boleta') {
+      prof = { mode: 'retencion', rate: selectedBoletaRetencionRate() };
+    } else {
+      prof = ocDetectTaxProfile();
+    }
     var taxAmt;
     var total;
     var labelCell;
@@ -261,7 +365,7 @@ jQuery(function ($) {
       $hint = $('#alloc-hint');
     }
     if (al <= 0) {
-      $hint.text('Impute actividades desde Buscar Actividades.').css('color', '#666');
+      $hint.text('Opcional: impute actividades desde Buscar Actividades.').css('color', '#666');
       return;
     }
     if (!hasLines) {
@@ -754,9 +858,60 @@ jQuery(function ($) {
     }
   });
 
+  $('#tax_doc_type').on('change', function () {
+    syncTaxFacturaModeVisibility();
+    syncTaxRetencionVisibility();
+    refreshDocTotals();
+  });
+
+  $(document).on('change', 'input[name="tax_factura_mode"]', function () {
+    refreshDocTotals();
+  });
+
+  $('#tax_retencion_percent').on('input change', function () {
+    retencionTouched = true;
+    refreshDocTotals();
+  });
+
+  $('#folio_year').on('input change', function () {
+    if (selectedTaxDocType() === 'boleta') {
+      applyBoletaRetencionDefaultIfUntouched();
+      refreshDocTotals();
+    }
+  });
+
   $('#oc-form').on('submit', function (e) {
     rebuildLineHiddenInputs();
     $('.oc-cta-select').prop('disabled', false);
+    var taxRequired = !!cfg.taxDocTypeRequired || !cfg.purchaseOrderId;
+    if (taxRequired && !selectedTaxDocType()) {
+      e.preventDefault();
+      alert('Debe elegir el tipo de documento (Factura o Boleta de Honorarios).');
+      $('#tax_doc_type').focus();
+      return false;
+    }
+    if (selectedTaxDocType() === 'factura') {
+      var fm = selectedTaxFacturaMode();
+      if (fm !== 'iva' && fm !== 'exento') {
+        e.preventDefault();
+        alert('Debe indicar si la factura es Afecta IVA o Exenta.');
+        $('#tax_factura_mode_wrap').show();
+        $('#tax_factura_mode_iva').focus();
+        return false;
+      }
+    }
+    if (selectedTaxDocType() === 'boleta') {
+      $('#tax_retencion_percent').prop('disabled', false);
+      var retRaw = String($('#tax_retencion_percent').val() || '').trim().replace(',', '.');
+      var retPct = parseFloat(retRaw);
+      if (retRaw === '' || isNaN(retPct) || retPct <= 0 || retPct > 100) {
+        e.preventDefault();
+        alert('Indique un % de retencion valido (mayor a 0 y hasta 100).');
+        $('#tax_retencion_wrap').show();
+        $('#tax_retencion_percent').focus();
+        return false;
+      }
+    }
     if (!$('#nro_cta').val()) {
       e.preventDefault();
       alert('Seleccione al menos la primera cuenta (' + labelNCta + ').');
@@ -777,11 +932,6 @@ jQuery(function ($) {
     if ($('#oc-lines-hidden-store input').length === 0) {
       e.preventDefault();
       alert('No se pudieron enviar las lineas de producto. Vuelva a agregar el producto.');
-      return false;
-    }
-    if ($('#resultadosPspto .budget-pick').length === 0) {
-      e.preventDefault();
-      alert('Debe imputar al menos una actividad de presupuesto.');
       return false;
     }
     return true;
@@ -875,6 +1025,8 @@ jQuery(function ($) {
       }
     });
   }
+  syncTaxFacturaModeVisibility();
+  syncTaxRetencionVisibility();
   if ($('#lines_body tr').length || $('#resultadosPspto .budget-pick').length) {
     refreshAllocHint();
     refreshDocTotals();

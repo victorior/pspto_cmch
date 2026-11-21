@@ -16,7 +16,6 @@ if ($year < 2000 || $year > 2100) {
 $error = null;
 $result = null;
 $detailLines = [];
-$ocAllocationsVoided = [];
 
 $searchNum = trim((string) ($_GET['activity_number'] ?? ''));
 if ($searchNum !== '') {
@@ -28,7 +27,6 @@ if ($searchNum !== '') {
         $ocImputations = BudgetService::ocImputationsForHeader($pdo, $tid, $hid);
         $detailLines = BudgetService::detailLinesForOcBudgetEditor($pdo, $tid, $hid, $ocImputations);
         BudgetService::applyHeaderSummaryFromDetails($result, $detailLines);
-        $ocAllocationsVoided = BudgetService::allocationsForHeaderVoided($pdo, $tid, $hid);
     }
 }
 
@@ -184,41 +182,6 @@ require dirname(__DIR__) . '/inc/layout_top.php';
   </div>
   <?php else: ?>
   <p class="text-muted">La actividad no tiene subactividades (lineas de detalle).</p>
-  <?php endif; ?>
-
-  <?php if ($ocAllocationsVoided !== []): ?>
-  <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid #fecaca;">
-    <h3 style="margin:0 0 0.5rem;font-size:1rem;">Historial — OC anuladas (imputaciones reversadas)</h3>
-    <p class="text-muted" style="margin:0 0 0.75rem;font-size:0.88rem;">No consumen saldo; registro de lo imputado antes de anular.</p>
-    <table class="data">
-      <thead>
-        <tr>
-          <th>Nº OC</th>
-          <th>Fecha OC</th>
-          <th>Anulada</th>
-          <th>Cuenta</th>
-          <th class="num">Monto</th>
-          <th>REQ</th>
-        </tr>
-      </thead>
-      <tbody>
-      <?php foreach ($ocAllocationsVoided as $alloc): ?>
-        <?php
-          $folio = oc_folio_label((string) ($alloc['folio_year'] ?? ''), (int) ($alloc['numero_oc'] ?? 0));
-          $voidedRaw = trim((string) ($alloc['voided_at'] ?? ''));
-        ?>
-        <tr>
-          <td><?= h($folio) ?> <span style="color:#b91c1c;font-size:0.8rem;font-weight:600;">Anulada</span></td>
-          <td><?= h(substr((string) ($alloc['ordered_at'] ?? ''), 0, 10)) ?></td>
-          <td><?= $voidedRaw !== '' ? h(substr($voidedRaw, 0, 16)) : '—' ?></td>
-          <td><?= h(account_code_label(['account_id' => $alloc['account_id'] ?? 0, 'name' => $alloc['account_name'] ?? ''])) ?></td>
-          <td class="num"><?= h(budget_int_fmt((float) ($alloc['amount'] ?? 0))) ?></td>
-          <td><?= trim((string) ($alloc['req_number'] ?? '')) !== '' ? h((string) $alloc['req_number']) : '—' ?></td>
-        </tr>
-      <?php endforeach; ?>
-      </tbody>
-    </table>
-  </div>
   <?php endif; ?>
 </div>
 <?php endif; ?>
