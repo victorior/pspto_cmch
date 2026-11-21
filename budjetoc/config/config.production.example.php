@@ -1,22 +1,22 @@
 <?php
 
 /**
- * Plantilla de produccion (nanodata.cl/cmchbudget).
+ * Plantilla de produccion (nanosoft.cl/budget) — app multi-tenant.
  * Copiar a config/config.php en el servidor.
  * Credenciales y secretos: secrets_path (fuera de public_html).
  */
 return [
     'env' => 'production',
     'schema_checks' => false,
-    'base_url' => '/cmchbudget',
-    'public_url' => 'https://nanodata.cl/cmchbudget',
+    'base_url' => '/budget',
+    'public_url' => 'https://nanosoft.cl/budget',
     /** Absoluto en el servidor; no subir secretos dentro de public_html. */
-    'secrets_path' => '/home/nanodata/config/cmchbudget-secrets.local.php',
+    'secrets_path' => '/home2/cna14865/config/budget-secrets.local.php',
     'db' => [
         'host' => 'localhost',
         'port' => 3306,
-        'name' => 'nanodata_cmchbudgetOC',
-        'user' => 'nanodata_cmchbudgetOC_usr',
+        'name' => 'cna14865_cmchbudgetOC',
+        'user' => 'cna14865_cmchbudgetOC_usr',
         'pass' => '', // sobrescrito por secrets_path
         'charset' => 'utf8mb4',
     ],
