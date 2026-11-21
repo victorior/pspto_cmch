@@ -176,6 +176,26 @@ p.page-actions { border: 0; }
 }
 @media (max-width: 640px) { .catalog-list { columns: 1; } }
 .catalog-list li { break-inside: avoid; margin-bottom: 0.2rem; }
+.catalog-list--editable {
+  columns: 1;
+  list-style: none;
+  padding-left: 0;
+}
+.catalog-rename-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  margin-bottom: 0.45rem;
+}
+.catalog-rename-form__current {
+  min-width: 8rem;
+  font-weight: 600;
+}
+.catalog-rename-form input[name="new_name"] {
+  flex: 1 1 10rem;
+  max-width: 18rem;
+}
 .catalog-add-form { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
 .catalog-add-form label { margin-top: 0.35rem; }
 .catalog-add-form--grid {

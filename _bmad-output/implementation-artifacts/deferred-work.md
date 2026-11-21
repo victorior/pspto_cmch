@@ -53,3 +53,11 @@
 - source_spec: `_bmad-output/specs/spec-carga-masiva-actividades-presupuesto/stories/3-confirmar-altas-de-actividades.md`
   summary: Ventana TOCTOU entre validate OK e INSERT (catalogo/duplicado concurrente)
   evidence: maybe-false medium; re-validate mitiga; no hay test de carrera
+
+- source_spec: `_bmad-output/specs/spec-admin-org-y-eliminar-actividades/stories/2-editar-catalogo-org-con-paridad-multi-tenant.md`
+  summary: Race check-then-UPDATE en rename multi-tenant de catálogo org sin locks FOR UPDATE
+  evidence: Entre exists checks y UPDATE otro proceso podría insertar/borrar; patrón preexistente del catálogo; SA único hace el escenario raro
+
+- source_spec: `_bmad-output/specs/spec-admin-org-y-eliminar-actividades/stories/2-editar-catalogo-org-con-paridad-multi-tenant.md`
+  summary: Throwable en rename de CatalogService se re-lanza tras rollback en lugar de devolver {ok:false}
+  evidence: Mismo patrón que otros servicios; handlers admin no capturan Throwable y pueden 500
