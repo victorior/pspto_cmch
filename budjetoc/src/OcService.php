@@ -252,6 +252,50 @@ final class OcService
     }
 
     /**
+     * Cambio solo de perfil tributario: Abierta o Cerrada (no Anulada).
+     * No desbloquea edicion completa de lineas/presupuesto/proveedor.
+     */
+    public static function canChangeTaxProfile(array $poRow): bool
+    {
+        $status = (int) ($poRow['status'] ?? -1);
+
+        return $status === self::STATUS_ABIERTA || $status === self::STATUS_CERRADA;
+    }
+
+    /**
+     * Actualiza unicamente tax_doc_type / tax_mode / tax_percent (multi-tenant).
+     *
+     * @param array{tax_doc_type: string, tax_mode: string, tax_percent: float} $taxProfile
+     */
+    public static function updatePurchaseOrderTaxProfile(
+        PDO $pdo,
+        int $tenantId,
+        int $purchaseOrderId,
+        array $taxProfile,
+    ): void {
+        $st = $pdo->prepare('SELECT id, status FROM purchase_orders WHERE id = ? AND tenant_id = ?');
+        $st->execute([$purchaseOrderId, $tenantId]);
+        $po = $st->fetch(PDO::FETCH_ASSOC);
+        if ($po === false) {
+            throw new RuntimeException('OC no encontrada.');
+        }
+        if (!self::canChangeTaxProfile($po)) {
+            throw new RuntimeException('No se puede cambiar el perfil tributario de una OC anulada.');
+        }
+
+        $pdo->prepare(
+            'UPDATE purchase_orders SET tax_doc_type = ?, tax_mode = ?, tax_percent = ?
+             WHERE id = ? AND tenant_id = ?'
+        )->execute([
+            (string) ($taxProfile['tax_doc_type'] ?? ''),
+            (string) ($taxProfile['tax_mode'] ?? ''),
+            (float) ($taxProfile['tax_percent'] ?? 0),
+            $purchaseOrderId,
+            $tenantId,
+        ]);
+    }
+
+    /**
      * @return array{
      *   order: array<string, mixed>,
      *   lines: list<array{product_code: string, product_name: string, qty: float, unit_price: float}>,

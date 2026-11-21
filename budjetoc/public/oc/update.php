@@ -50,4 +50,30 @@ if (!empty($_POST['status_only'])) {
     redirect_to($loc);
 }
 
+if (!empty($_POST['tax_only'])) {
+    $st = $pdo->prepare('SELECT id, status, folio_year, numero_oc FROM purchase_orders WHERE id = ? AND tenant_id = ?');
+    $st->execute([$id, $tid]);
+    $po = $st->fetch(PDO::FETCH_ASSOC);
+    if ($po === false) {
+        redirect_to($loc);
+    }
+    try {
+        if (!OcService::canChangeTaxProfile($po)) {
+            throw new RuntimeException('No se puede cambiar el perfil tributario de una OC anulada.');
+        }
+        $folioYearInt = (int) ($po['folio_year'] ?? $year);
+        $taxProfile = oc_tax_profile_from_form_input(
+            strtolower(trim((string) ($_POST['tax_doc_type'] ?? ''))),
+            strtolower(trim((string) ($_POST['tax_factura_mode'] ?? ''))),
+            $folioYearInt,
+            trim((string) ($_POST['tax_retencion_percent'] ?? ''))
+        );
+        OcService::updatePurchaseOrderTaxProfile($pdo, $tid, $id, $taxProfile);
+        redirect_to($loc . '&tax_updated=' . (int) ($po['numero_oc'] ?? 0));
+    } catch (Throwable $e) {
+        redirect_to('oc/oc_tax_edit.php?id=' . $id . '&year=' . max(2000, min(2100, $year))
+            . '&err=' . rawurlencode($e->getMessage()));
+    }
+}
+
 redirect_to($loc);

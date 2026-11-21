@@ -56,6 +56,10 @@ if (isset($_GET['updated'])) {
     $upNum = (string) $_GET['updated'];
     echo '<p class="alert alert-ok">OC ' . h($upNum) . ' actualizada.</p>';
 }
+if (isset($_GET['tax_updated'])) {
+    $taxNum = (string) $_GET['tax_updated'];
+    echo '<p class="alert alert-ok">OC ' . h($taxNum) . ': ' . h(t_es('oc_perfil_actualizado')) . '</p>';
+}
 ?>
 <div class="card">
   <form method="get" style="display:flex;gap:0.5rem;align-items:end;flex-wrap:wrap;">
@@ -120,6 +124,9 @@ if (isset($_GET['updated'])) {
         <td style="white-space:nowrap;">
           <?php if ($stKey === OcService::STATUS_ABIERTA): ?>
           <a class="btn" href="oc_new.php?id=<?= $poId ?>&year=<?= $year ?>"><?= h(t_es('editar')) ?></a>
+          <?php endif; ?>
+          <?php if (OcService::canChangeTaxProfile($r)): ?>
+          <a class="btn" href="oc_tax_edit.php?id=<?= $poId ?>&year=<?= $year ?>"><?= h(t_es('perfil_tributario')) ?></a>
           <?php endif; ?>
           <a class="btn btn-primary" href="print.php?id=<?= $poId ?>&year=<?= $year ?>">Ver OC</a>
         </td>
