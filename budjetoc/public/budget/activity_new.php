@@ -82,8 +82,6 @@ if (isset($_GET['error'])) {
         $formError = 'Error al guardar la actividad. Intente de nuevo.';
     } elseif ($_GET['error'] === 'rules' && !empty($_GET['code'])) {
         $formError = BudgetActivityRules::errorMessage((string) $_GET['code']);
-    } elseif ($_GET['error'] === 'receive_only') {
-        $formError = 'Esta coordinacion solo recibe imputaciones; no puede crear actividades.';
     }
 }
 
@@ -156,11 +154,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($creatorDeptId <= 0 && $dDivId > 0) {
             $creatorDeptId = $dDivId;
         }
-    }
-
-    if (!BudgetActivityRules::creatorCoordinationMayCreateBudget($pdo, $tid, $creatorDeptId > 0 ? $creatorDeptId : null)) {
-        header('Location: activity_new.php?year=' . $year . '&error=receive_only');
-        exit;
     }
 
     $rules = BudgetActivityRules::validateAndNormalizeHeader($pdo, $tid, $header, $creatorDeptId > 0 ? $creatorDeptId : null);
@@ -249,12 +242,6 @@ if ($isEncargado && $departments !== []) {
     $predCreator = (int) ($departments[0]['id'] ?? 0);
 } elseif ($isAdmin && $adminDeptSession > 0) {
     $predCreator = $adminDeptSession;
-}
-
-if ($predCreator !== null && $predCreator > 0
-    && !BudgetActivityRules::creatorCoordinationMayCreateBudget($pdo, $tid, $predCreator)) {
-    header('Location: index.php?no_new_activity=receive_only');
-    exit;
 }
 
 $creatorDeptId = $predCreator ?? 0;

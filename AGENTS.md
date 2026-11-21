@@ -38,3 +38,7 @@ App PHP 8 + MySQL unificada (presupuesto + OC + admin multi-tenant). Codigo en `
 - Hardcode antiguo exigia siempre `db.name=budjetoc`; en produccion ya no — no reintroducir ese hardcode global.
 
 <!-- /bmad:context -->
+
+## Notas del equipo (fuera del bloque managed)
+
+- No reintroducir lista receive-only / catalogReceive (Docencia, Administracioncc, etc.): `docs/decision-remove-receive-only.md`.

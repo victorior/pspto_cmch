@@ -6,7 +6,7 @@ declare(strict_types=1);
  * CLI — rename multi-tenant de catálogo org (historia 2 / CAP-1 edit).
  * Uso: php database/test_catalog_org_rename.php
  *
- * Cubre matriz I/O: OK, conflicto, vacío, noop, desalineación, receive-only,
+ * Cubre matriz I/O: OK, conflicto, vacío, noop, desalineación,
  * CSRF inválido, no–super-admin, HTTP success SA+CSRF (CC/div/coord).
  */
 
@@ -316,19 +316,6 @@ assertTrue('CC conflicto: ok=false', $r['ok'] === false);
 assertTrue('CC conflicto: menciona conflicto', isset($r['error']) && stripos($r['error'], 'conflicto') !== false);
 assertTrue('CC conflicto: sin mutación', findCostCenterByName($pdo, $tenantIds[0], $ccOld) !== null);
 
-// --- CC: Receive-only ---
-$receiveName = BudgetActivityRules::catalogReceiveCostCenterNames()[0] ?? 'Docencia';
-$r = CatalogService::renameCostCenterAcrossTenants($pdo, $receiveName, 'ZZ Should Not Exist ' . $suffix);
-assertTrue('CC receive-only: ok=false', $r['ok'] === false);
-assertTrue(
-    'CC receive-only: cita dependencia',
-    isset($r['error']) && (stripos($r['error'], 'receive-only') !== false || stripos($r['error'], 'catalogReceive') !== false)
-);
-assertTrue(
-    'receive-only helper',
-    BudgetActivityRules::isReceiveOnlyOrCatalogReceiveName($receiveName)
-);
-
 // --- CC: Desalineación ---
 $pdo->prepare('INSERT INTO cost_centers (tenant_id, name) VALUES (?, ?)')->execute([$tenantIds[0], $misalignName]);
 $createdCcIds[] = (int) $pdo->lastInsertId();
@@ -375,14 +362,6 @@ assertTrue(
 assertTrue(
     'Div desalineación: sin mutación en origen',
     findDepartmentByName($pdo, $tenantIds[0], $misalignDiv, 'estandar') !== null
-);
-
-// --- Coord receive-only (si el nombre aplica) ---
-$r = CatalogService::renameDepartmentAcrossTenants($pdo, $receiveName, 'ZZ Coord Should Not Exist ' . $suffix, 'coordinacion');
-assertTrue('Coord receive-only: ok=false', $r['ok'] === false);
-assertTrue(
-    'Coord receive-only: cita dependencia',
-    isset($r['error']) && (stripos($r['error'], 'receive-only') !== false || stripos($r['error'], 'catalogReceive') !== false)
 );
 
 // --- Rename OK CC ---

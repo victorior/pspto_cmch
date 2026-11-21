@@ -543,7 +543,7 @@ function budget_list_context_from_return(PDO $pdo, int $tenantId, ?string $retur
     };
 
     return [
-        'department_kind' => ($dept['type'] ?? '') === 'coordinacion' ? 'Centro de costo' : 'Division',
+        'department_kind' => ($dept['type'] ?? '') === 'coordinacion' ? 'Coordinacion' : 'Division',
         'department_name' => (string) ($dept['name'] ?? ''),
         'budget_year' => $budgetYear,
         'month' => $month,

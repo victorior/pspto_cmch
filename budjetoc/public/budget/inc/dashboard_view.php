@@ -8,7 +8,6 @@ declare(strict_types=1);
 /** @var int $yearPrev */
 /** @var int $yearNext */
 /** @var bool $nextYearEditEnabled */
-/** @var bool $dashboardReceiveOnlyNotice */
 /** @var array{name: string, tenant_name: string} $currentUserInfo */
 /** @var bool $showDepartmentSelector */
 /** @var list<array{id: int, name: string, type: string, parent_id: int|null}> $departmentsForSelector */
@@ -67,9 +66,6 @@ $dashboardUrl = static function (?int $departmentId, array $query = [], bool $sh
 ?>
 <?php if (!$dashboardShowActivities): ?>
 <h1 class="dash-title">Dashboard</h1>
-<?php if ($dashboardReceiveOnlyNotice): ?>
-<div class="alert alert-warn">Esta coordinacion solo recibe imputaciones de otras areas; no puede crear nuevas actividades de presupuesto.</div>
-<?php endif; ?>
 <p class="dash-muted">Seleccione el <?= h(t_es('ano')) ?> presupuestario y un mes para ver las actividades.</p>
 <div class="dash-pills">
   <span class="dash-muted" style="margin-right:0.25rem;"><?= h(t_es('ano')) ?>:</span>
@@ -93,26 +89,25 @@ $dashboardUrl = static function (?int $departmentId, array $query = [], bool $sh
 <?php if (!$dashboardShowActivities && $showDepartmentSelector && $departmentsForSelector !== []): ?>
 <?php
 $departamentos = array_values(array_filter($departmentsForSelector, static fn (array $d): bool => ($d['type'] ?? '') === 'estandar'));
-$coordinacionesAll = array_values(array_filter($departmentsForSelector, static fn (array $d): bool => ($d['type'] ?? '') === 'coordinacion'));
-$coordinacionesOperativas = [];
-$centrosCostoCatalogo = [];
-foreach ($coordinacionesAll as $d) {
-    if (BudgetActivityRules::isCatalogReceiveCostCenterName((string) ($d['name'] ?? ''))) {
-        $centrosCostoCatalogo[] = $d;
-    } else {
-        $coordinacionesOperativas[] = $d;
-    }
-}
-$centrosCostoCatalogo = BudgetActivityRules::sortCatalogReceiveDepartments($centrosCostoCatalogo);
+$coordinaciones = array_values(array_filter($departmentsForSelector, static fn (array $d): bool => ($d['type'] ?? '') === 'coordinacion'));
 usort(
-    $coordinacionesOperativas,
+    $departamentos,
     static fn (array $a, array $b): int => strcmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? ''))
 );
-$selectorOptionCount = count($departamentos) + count($coordinacionesOperativas) + count($centrosCostoCatalogo);
+usort(
+    $coordinaciones,
+    static fn (array $a, array $b): int => strcmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? ''))
+);
+$centrosCostoCatalogo = [];
+if (isset($pdo, $tid) && $pdo instanceof PDO && (int) $tid > 0) {
+    $centrosCostoCatalogo = CostCenterCatalog::listByTenant($pdo, (int) $tid);
+}
+$selectorOptionCount = count($departamentos) + count($coordinaciones);
 
 $renderSelectorColumn = static function (
     string $title,
-    array $items
+    array $items,
+    bool $asDepartmentLinks = true
 ) use (
     $budgetYear,
     $month,
@@ -128,6 +123,14 @@ $renderSelectorColumn = static function (
         <tr><td class="dash-muted">—</td></tr>
         <?php else: ?>
         <?php foreach ($items as $d):
+            if (!$asDepartmentLinks) {
+        ?>
+        <tr>
+          <td><span class="dash-muted"><?= h((string) ($d['name'] ?? '')) ?></span></td>
+        </tr>
+        <?php
+                continue;
+            }
             $did = (int) $d['id'];
             $isSelected = $selectedDepartmentId === $did;
             $deptQuery = ['budget_year' => $budgetYear, 'month' => $month];
@@ -148,15 +151,15 @@ $renderSelectorColumn = static function (
 };
 ?>
 <?php if ($selectorOptionCount > 1): ?>
-<p class="dash-muted"><strong>Seleccione una Division, Coordinacion o Centro de Costo:</strong></p>
+<p class="dash-muted"><strong>Seleccione una Division o Coordinacion:</strong></p>
 <?php endif; ?>
 <div class="dash-grid cols-3">
   <?php $renderSelectorColumn('Divisiones', $departamentos); ?>
-  <?php $renderSelectorColumn('Coordinaciones/C.C.', $coordinacionesOperativas); ?>
-  <?php $renderSelectorColumn('Centros de Costo', $centrosCostoCatalogo); ?>
+  <?php $renderSelectorColumn('Coordinaciones/C.C.', $coordinaciones); ?>
+  <?php $renderSelectorColumn('Centros de Costo', $centrosCostoCatalogo, false); ?>
 </div>
 <?php if ($selectorOptionCount > 1 && ($selectedDepartmentId === null || $selectedDepartmentId <= 0)): ?>
-<p class="dash-muted">Elija una Division, Coordinacion o Centro de Costo arriba para ver las actividades de forma acotada.</p>
+<p class="dash-muted">Elija una Division o Coordinacion arriba para ver las actividades de forma acotada. Los centros de costo son catalogo contable (imputacion al crear desde una division).</p>
 <?php endif; ?>
 <?php endif; ?>
 

@@ -7,8 +7,8 @@ declare(strict_types=1);
  *
  * Parte del modelo dual: tabla independiente de departments, referenciada por
  * budget_headers.cost_center_id cuando una division crea la actividad.
- * Algunos nombres coinciden con coordinaciones receive-only en departments;
- * la relacion es por nombre/reglas (BudgetActivityRules), no por FK.
+ * No hay FK hacia departments; nombres pueden coincidir con coordinaciones
+ * sin implicar bloqueo de creacion de actividades.
  *
  * Cache por request.
  */

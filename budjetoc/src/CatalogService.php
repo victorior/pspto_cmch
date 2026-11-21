@@ -320,12 +320,6 @@ final class CatalogService
         if (self::namesEqualInsensitive($oldName, $newName)) {
             return ['ok' => true, 'changed' => false, 'message' => 'Sin cambios: el nombre es el mismo.'];
         }
-        if (BudgetActivityRules::isReceiveOnlyOrCatalogReceiveName($oldName)) {
-            return [
-                'ok' => false,
-                'error' => 'No se puede renombrar: el nombre está en receive-only / catalogReceive (dependencia de configuración).',
-            ];
-        }
 
         $tenantIds = self::tenantIds($pdo, true);
         if ($tenantIds === []) {
@@ -400,12 +394,6 @@ final class CatalogService
         if (self::namesEqualInsensitive($oldName, $newName)) {
             return ['ok' => true, 'changed' => false, 'message' => 'Sin cambios: el nombre es el mismo.'];
         }
-        if (BudgetActivityRules::isReceiveOnlyOrCatalogReceiveName($oldName)) {
-            return [
-                'ok' => false,
-                'error' => 'No se puede renombrar: el nombre está en receive-only / catalogReceive (dependencia de configuración).',
-            ];
-        }
 
         $tenantIds = self::tenantIds($pdo, true);
         if ($tenantIds === []) {
@@ -467,12 +455,6 @@ final class CatalogService
         $name = trim($name);
         if ($name === '') {
             return ['ok' => false, 'error' => 'Nombre requerido.'];
-        }
-        if (BudgetActivityRules::isReceiveOnlyOrCatalogReceiveName($name)) {
-            return [
-                'ok' => false,
-                'error' => 'No se puede eliminar: el nombre está en receive-only / catalogReceive (dependencia de configuración).',
-            ];
         }
 
         $tenantIds = self::tenantIds($pdo, true);
@@ -550,12 +532,6 @@ final class CatalogService
         }
         if ($name === '') {
             return ['ok' => false, 'error' => 'Nombre requerido.'];
-        }
-        if (BudgetActivityRules::isReceiveOnlyOrCatalogReceiveName($name)) {
-            return [
-                'ok' => false,
-                'error' => 'No se puede eliminar: el nombre está en receive-only / catalogReceive (dependencia de configuración).',
-            ];
         }
 
         $tenantIds = self::tenantIds($pdo, true);
