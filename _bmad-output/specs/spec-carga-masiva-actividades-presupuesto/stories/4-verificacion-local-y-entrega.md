@@ -53,7 +53,7 @@ context:
 - [x] `budjetoc/database/test_budget_activity_csv_validate.php` + `…_import.php` -- Ejecutar y registrar resultado -- delivery verificación local.
 - [x] `_bmad-output/deploy/README.md` -- Alinear a nanosoft (`budget-app.zip`, `/budget`) -- docs de entrega coherentes.
 - [x] `_bmad-output/deploy/budget-app.zip` -- Empaquetar `budget/` desde app feature sin secretos -- artefacto prod.
-- [ ] GitHub (`main`) -- Push feature + merge a `main` en esta sesión -- constraint delivery.md (decisión B).
+- [x] GitHub (`main`) -- Push feature + merge a `main` en esta sesión -- constraint delivery.md (decisión B).
 
 **Acceptance Criteria:**
 - Given smokes locales, when se corren validate+import, then ambos pasan (exit 0).
@@ -67,6 +67,7 @@ context:
 - 2026-11-21: `_bmad-output/deploy/README.md` alineado a nanosoft.cl/budget (`budget-app.zip`, DocumentRoot `budget/public`).
 - 2026-11-21: `config.production.example.php` actualizado a nanosoft (`base_url=/budget`, `public_url=https://nanosoft.cl/budget`, `secrets_path` externo).
 - 2026-11-21: Empaquetado manual → `_bmad-output/deploy/budget-app.zip` (raíz `budget/`, 122 entradas, incluye import UI, 0 `*secret*`); zip gitignored.
+- 2026-11-21: GitHub — push `feature/carga-masiva-actividades-presupuesto` + merge PR #2 → `origin/main` (`b1bb3c0`).
 
 ## Spec Change Log
 
